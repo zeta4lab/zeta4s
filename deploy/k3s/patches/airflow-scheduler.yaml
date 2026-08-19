@@ -13,7 +13,8 @@ spec:
   template:
     metadata:
       labels:
-        # NetworkPolicy(40-networkpolicy.yaml)가 이 label 로 egress 를 연다.
+        # zeta4s-api 의 ingress 정책이 이 label 로 발신자를 식별한다. egress 를
+        # 여는 표식이 아니다 — scheduler 의 egress 는 Airflow 배포가 소유한다.
         zeta4s.io/runtime: scheduler
     spec:
       containers:

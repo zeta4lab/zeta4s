@@ -58,6 +58,9 @@ Scheduler 중립 run gate는 동일한 host `z4s api run` 명령 흐름으로 Ai
 - internal execution endpoint 를 Ingress 로 노출하지 않고 Service 는 ClusterIP 다.
 - `zeta4s-api` 는 non-root, privilege escalation 금지, `readOnlyRootFilesystem` 이다.
 - `ZETA4S_API_TOKEN` 은 Secret 에서 온다. 비면 public API 가 무인증이 된다.
+- NetworkPolicy 는 zeta4s 소유 Pod 만 selector 로 고른다. NetworkPolicy 는 Pod 를 고르는
+  순간 그 방향을 화이트리스트로 바꾸므로, zeta4s 가 배포하지 않는 scheduler 를 고르면
+  열어 준 대상 밖이 전부 닫힌다. scheduler 의 egress 요구는 engine 배포가 안다.
 
 cluster 가 필요한 배포 검증은 이 gate 가 대신하지 않는다. 단일 노드 전제와 배포 절차는
 `../../deploy/k3s/README.md` 에 있다.
