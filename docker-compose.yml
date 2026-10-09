@@ -219,7 +219,7 @@ services:
     depends_on:
       lakekeeper:
         condition: service_healthy
-      minio-init:
+      rustfs-init:
         condition: service_completed_successfully
     entrypoint: ["/bin/sh", "-c"]
     command:
@@ -237,51 +237,53 @@ services:
         status=$$(curl -sS -o /tmp/warehouse.json -w '%{http_code}' -X POST \
           http://lakekeeper:8181/management/v1/warehouse \
           -H 'Content-Type: application/json' \
-          --data '{"warehouse-name":"warehouse","storage-profile":{"type":"s3","bucket":"zeta4s-checkpoint","key-prefix":"warehouse","endpoint":"http://minio:19002","sts-endpoint":"http://minio:19002","region":"us-east-1","path-style-access":true,"flavor":"s3-compat","sts-enabled":true},"storage-credential":{"type":"s3","credential-type":"access-key","aws-access-key-id":"'"$${MINIO_ROOT_USER}"'","aws-secret-access-key":"'"$${MINIO_ROOT_PASSWORD}"'"},"delete-profile":{"type":"hard"}}')
+          --data '{"warehouse-name":"warehouse","storage-profile":{"type":"s3","bucket":"zeta4s-checkpoint","key-prefix":"warehouse","endpoint":"http://rustfs:9000","sts-endpoint":"http://rustfs:9000","region":"us-east-1","path-style-access":true,"flavor":"s3-compat","sts-enabled":true},"storage-credential":{"type":"s3","credential-type":"access-key","aws-access-key-id":"'"$${RUSTFS_ACCESS_KEY}"'","aws-secret-access-key":"'"$${RUSTFS_SECRET_KEY}"'"},"delete-profile":{"type":"hard"}}')
         case "$$status" in
           200|201|204) ;;
           400) grep -q 'CreateWarehouseStorageProfileOverlap' /tmp/warehouse.json ;;
           *) exit 1 ;;
         esac
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin}
     restart: "no"
     profiles: [checkpoint]
 
-  minio:
-    image: ${MINIO_IMAGE:-quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z}
-    command: ["server", "/data", "--address", ":19002", "--console-address", ":19092"]
+  # S3 호환 object storage 다. Lakekeeper 가 STS AssumeRole 로 vended credential 을 발급하므로
+  # S3 API 와 STS 를 함께 지원해야 한다. 공개 image 로 받을 수 있어야 quickstart 가 성립한다.
+  rustfs:
+    image: ${RUSTFS_IMAGE:-rustfs/rustfs:1.0.0}
+    command: ["/data"]
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin}
     volumes:
-      - minio-data:/data
+      - rustfs-data:/data
     ports:
-      - "${MINIO_API_PORT:-19002}:19002"
-      - "${MINIO_CONSOLE_PORT:-19092}:19092"
+      - "${RUSTFS_API_PORT:-19002}:9000"
+      - "${RUSTFS_CONSOLE_PORT:-19092}:9001"
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:19002/minio/health/live"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/health"]
       interval: 5s
       timeout: 3s
       retries: 20
       start_period: 5s
     profiles: [checkpoint]
 
-  minio-init:
-    image: ${MINIO_CLIENT_IMAGE:-quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z}
+  rustfs-init:
+    image: ${AWS_CLI_IMAGE:-amazon/aws-cli:2.36.47}
     depends_on:
-      minio:
+      rustfs:
         condition: service_healthy
     entrypoint: ["/bin/sh", "-c"]
     command:
       - >-
-        mc alias set checkpoint http://minio:19002
-        "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}" &&
-        mc mb --ignore-existing checkpoint/zeta4s-checkpoint
+        aws --endpoint-url http://rustfs:9000 s3api head-bucket --bucket zeta4s-checkpoint ||
+        aws --endpoint-url http://rustfs:9000 s3api create-bucket --bucket zeta4s-checkpoint
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
+      AWS_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin}
+      AWS_DEFAULT_REGION: us-east-1
     restart: "no"
     profiles: [checkpoint]
 
@@ -605,7 +607,7 @@ volumes:
   oracle-data:
   elasticsearch-data:
   metastore-data:
-  minio-data:
+  rustfs-data:
   airflow-logs:
   prefect-data:
   prometheus-data:

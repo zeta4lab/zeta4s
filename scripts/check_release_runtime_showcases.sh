@@ -33,8 +33,8 @@ STATSD_EXPORTER_STATSD_PORT="${STATSD_EXPORTER_STATSD_PORT:-29125}"
 PROMETHEUS_PORT="${PROMETHEUS_PORT:-29090}"
 ALERTMANAGER_PORT="${ALERTMANAGER_PORT:-29093}"
 LAKEKEEPER_PORT="${LAKEKEEPER_PORT:-28181}"
-MINIO_API_PORT="${MINIO_API_PORT:-29002}"
-MINIO_CONSOLE_PORT="${MINIO_CONSOLE_PORT:-29092}"
+RUSTFS_API_PORT="${RUSTFS_API_PORT:-29002}"
+RUSTFS_CONSOLE_PORT="${RUSTFS_CONSOLE_PORT:-29092}"
 
 if [[ -z "$PYTHON_BIN" ]]; then
   PYTHON_BIN="$(uv run python -c 'import sys; print(sys.executable)')"
@@ -271,8 +271,8 @@ compose_env=(
   "PROMETHEUS_PORT=${PROMETHEUS_PORT}"
   "ALERTMANAGER_PORT=${ALERTMANAGER_PORT}"
   "LAKEKEEPER_PORT=${LAKEKEEPER_PORT}"
-  "MINIO_API_PORT=${MINIO_API_PORT}"
-  "MINIO_CONSOLE_PORT=${MINIO_CONSOLE_PORT}"
+  "RUSTFS_API_PORT=${RUSTFS_API_PORT}"
+  "RUSTFS_CONSOLE_PORT=${RUSTFS_CONSOLE_PORT}"
   "ZETA4S_ROWSET_CHECKPOINT_TARGET_BYTES=${ZETA4S_ROWSET_CHECKPOINT_TARGET_BYTES:-1}"
 )
 
@@ -289,7 +289,7 @@ reset_compose_args=("${compose_args[@]}" --profile airflow --profile prefect)
 release_services=()
 while IFS= read -r service; do
   case "$service" in
-    airflow-init|z4s-state-init|lakekeeper-migrate|lakekeeper-init|minio-init) ;;
+    airflow-init|z4s-state-init|lakekeeper-migrate|lakekeeper-init|rustfs-init) ;;
     *) release_services+=("$service") ;;
   esac
 done < <(env "${compose_env[@]}" "${compose_args[@]}" config --services)
