@@ -7,6 +7,9 @@
 # step 실행을 internal API 로 위임하므로 secret 을 직접 풀지 않는다.
 #
 # DAG volume 도 받지 않는다. 그것은 Airflow 전용 공유 지점이다.
+#
+# compose 의 `prefect-worker` 도 같은 입력만 받는다. 두 배포 형태가 같은 worker 에 다른
+# 요구사항을 선언하면 한쪽은 틀린 것이므로 gate 가 두 선언을 대조한다.
 spec:
   template:
     metadata:

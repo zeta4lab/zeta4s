@@ -228,18 +228,21 @@ class RuntimeEnvironmentContractTest(unittest.TestCase):
     def test_master_keyring_is_isolated_from_shared_runtime_state(self) -> None:
         """keyring 은 zeta4s-api 만 받는다.
 
-        runtime state volume 은 Prefect worker 와 공유된다. keyring 을 그 안에 두면
-        worker 가 master key 를 읽을 수 있다. worker 는 step 실행을 internal API 로
-        위임하므로 secret 을 직접 풀지 않는다 — 필요 없는 권한이다.
+        service 이름을 하나씩 부정하면 새 service 가 늘 때 검사에서 빠진다. 받는 쪽을
+        열거해 그것이 정확히 하나임을 본다. keyring 을 runtime state volume 안에 두면
+        state 를 받는 배포 단위가 곧 master key 를 읽는 배포 단위가 되므로 경로 자체도
+        분리되어야 한다.
         """
         compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
         services = compose["services"]
 
         def volume_targets(service: str) -> list[str]:
-            return [str(item).split(":")[1] for item in services[service].get("volumes", []) if ":" in str(item)]
+            return [str(item).split(":")[1] for item in services[service].get("volumes") or [] if ":" in str(item)]
 
-        self.assertIn("/var/lib/zeta4s-keyring", volume_targets("zeta4s-api"))
-        self.assertNotIn("/var/lib/zeta4s-keyring", volume_targets("prefect-worker"))
+        # 만드는 쪽(z4s-state-init)과 읽는 쪽(zeta4s-api) 둘뿐이다. 만드는 쪽은 파일을
+        # 생성하고 소유권과 mode 를 세우므로 쓰기가 필요하고, 읽는 쪽은 read-only 다.
+        keyring_holders = {name for name in services if "/var/lib/zeta4s-keyring" in volume_targets(name)}
+        self.assertEqual(keyring_holders, {"z4s-state-init", "zeta4s-api"})
 
         api_keyring_mounts = [str(item) for item in services["zeta4s-api"]["volumes"] if "zeta4s-keyring" in str(item)]
         self.assertTrue(all(item.endswith(":ro") for item in api_keyring_mounts))
@@ -250,6 +253,70 @@ class RuntimeEnvironmentContractTest(unittest.TestCase):
         for target in volume_targets("zeta4s-api"):
             if "keyring" in target:
                 self.assertFalse(target.startswith("/var/lib/zeta4s/"))
+
+    def test_prefect_worker_receives_only_internal_api_inputs(self) -> None:
+        """worker 는 step 실행과 finalize 를 internal API 로 위임한다.
+
+        그래서 필요한 zeta4s 입력은 endpoint 와 internal token 둘뿐이다. `x-zeta4s-env`
+        앵커를 상속하면 metastore 자격증명, iceberg token, public API token 이 함께 들어오고,
+        앵커에 항목이 늘 때마다 worker 권한이 자동으로 늘어난다.
+        """
+        compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+        worker_env = compose["services"]["prefect-worker"]["environment"]
+
+        self.assertEqual(
+            {key for key in worker_env if key.startswith("ZETA4S_")},
+            {"ZETA4S_API_INTERNAL_URL", "ZETA4S_RUNTIME_INTERNAL_TOKEN"},
+        )
+        self.assertEqual(worker_env["ZETA4S_API_INTERNAL_URL"], "http://zeta4s-api:8088")
+        self.assertEqual(
+            worker_env["ZETA4S_RUNTIME_INTERNAL_TOKEN"],
+            "${ZETA4S_RUNTIME_INTERNAL_TOKEN:?Set ZETA4S_RUNTIME_INTERNAL_TOKEN by running scripts/configure_open_env.sh}",
+        )
+
+    def test_prefect_worker_mounts_no_volumes(self) -> None:
+        """worker 는 runtime state 를 파일로 읽거나 쓰지 않는다.
+
+        실행 결과와 checkpoint 는 internal API 를 거쳐 `zeta4s-api` 가 기록한다. state
+        volume 을 주면 worker 가 모든 project 의 artifact 와 run 기록까지 읽을 수 있다 —
+        필요 없는 권한이다.
+        `prefect-server` 의 상태 정본은 PostgreSQL 이므로 engine state 를 나눠 가질
+        이유도 없다. volume 이 하나도 없으면 두 경우가 함께 성립하므로 그것만 본다.
+        """
+        compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+        services = compose["services"]
+
+        self.assertEqual(services["prefect-worker"].get("volumes") or [], [])
+        # state volume 을 받지 않으므로 그 초기화도, metastore 기동도 기다릴 이유가 없다.
+        # 반대로 pool 을 polling 할 상대는 있어야 한다. 그 밖의 의존은 이 계약이 정하지
+        # 않는다 — worker 가 flow run 중에 부르는 zeta4s-api 를 나중에 더할 수 있다.
+        depends_on = set(services["prefect-worker"].get("depends_on") or {})
+        self.assertIn("prefect-server", depends_on)
+        self.assertNotIn("z4s-state-init", depends_on)
+        self.assertNotIn("postgres", depends_on)
+
+    def test_compose_and_k3s_declare_the_same_worker_inputs(self) -> None:
+        """같은 worker 의 요구사항이 배포 형태마다 다르게 선언되면 한쪽은 틀린 것이다."""
+        compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+        patch = yaml.safe_load((ROOT / "deploy/k3s/patches/prefect-worker.yaml").read_text(encoding="utf-8"))
+
+        pod_spec = patch["spec"]["template"]["spec"]
+        containers = pod_spec["containers"]
+        patch_env = {entry["name"] for container in containers for entry in container.get("env") or []}
+        compose_env = set(compose["services"]["prefect-worker"]["environment"])
+
+        self.assertEqual(
+            {key for key in compose_env if key.startswith("ZETA4S_")},
+            {key for key in patch_env if key.startswith("ZETA4S_")},
+        )
+        # k3s 는 Prefect 배포 자체를 소유하지 않으므로 PREFECT_* 는 대조 대상이 아니다.
+        self.assertEqual({key for key in patch_env if key.startswith("PREFECT_")}, set())
+
+        # 입력은 환경변수만이 아니다. patch 가 volume 을 붙이면 compose 에서 뗀 접근이
+        # k3s 에서 되살아나고, 환경변수만 대조하는 검사는 그것을 잡지 못한다.
+        self.assertEqual(pod_spec.get("volumes") or [], [])
+        for container in containers:
+            self.assertEqual(container.get("volumeMounts") or [], [], container.get("name"))
 
     def test_compose_uses_postgres_as_default_metastore_and_clickhouse_as_asset(self) -> None:
         compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))

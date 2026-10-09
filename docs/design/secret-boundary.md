@@ -20,6 +20,21 @@ runtime database password는 여기 포함되지 않는다. profile은 평문 �
 `prefect_engine`이며 step 실행을 internal API로 위임한다. secret을 푸는 쪽은 언제나
 API process다. 이 구분을 놓치면 worker에게 master keyring이 필요하다고 잘못 판단하게 된다.
 
+## scheduler runtime이 받는 입력
+
+같은 이유로 scheduler runtime은 secret도, runtime state도 받지 않는다. Prefect worker가
+받는 zeta4s 입력은 internal API endpoint와 internal token 둘뿐이다. Airflow도 generated
+DAG가 같은 두 입력만 쓴다.
+
+worker에 runtime state volume을 주면 secret을 풀 수 없더라도 모든 project의 artifact와 run
+기록을 읽을 수 있다.
+권한은 "무엇을 할 수 있는가"가 아니라 "무엇에 닿을 수 있는가"로 센다.
+
+배포 입력의 묶음(compose의 `x-zeta4s-env` 앵커)을 worker가 상속하면, 그 묶음에 항목이 늘
+때마다 worker 권한이 함께 늘어난다. 그 순간에는 아무도 그것을 결정하지 않으므로 worker는
+앵커를 상속하지 않고 필요한 것을 열거한다. compose와 k3s가 같은 입력을 선언하는지는
+gate가 대조한다.
+
 ## 2. 외부 서비스 자격증명
 
 `zeta4s-api`가 소비하지만 zeta4s가 의미를 정의하지 않는 배포 입력이다. metastore 접속 정보,

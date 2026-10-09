@@ -285,6 +285,24 @@ worker 와 server 가 다른 Prefect 가 되어 조용히 깨지므로 gate 가 
 `tests/test_runtime_environment_contract.py` 가 profile 대칭, engine 간 누수, SDK pin 정합을
 검사한다.
 
+## Scheduler Runtime Input Scope
+
+scheduler runtime 은 step 실행을 internal API 로 위임하므로 endpoint 와 internal token
+외의 입력이 필요 없다. 입력이 늘어나는 것은 대부분 결정이 아니라 상속의 부작용이다 —
+compose 의 배포 입력 앵커를 worker 가 상속하면 앵커가 자랄 때마다 worker 권한이 함께
+자란다.
+
+`tests/test_runtime_environment_contract.py` 가 `prefect-worker` 의 zeta4s 입력 집합과
+volume 부재를 검사한다. volume 이 하나도 없으면 runtime state 접근과 engine state 공유가
+함께 성립하지 않으므로 그 하나만 본다. 같은 test 가 compose 와
+`deploy/k3s/patches/prefect-worker.yaml` 의 입력을 대조하며, 대조 대상은 환경변수 이름과
+volume 양쪽이다 — patch 가 volume 을 붙이면 compose 에서 뗀 접근이 k3s 에서 되살아난다.
+허용 목록의 정본은 그 test 다.
+
+worker 가 runtime state 를 파일로 만지지 않는다는 판정은 실행 관측으로 확정한 것이다.
+파일 목록이나 import 그래프는 근사이며, 관측은 flow run 동안 worker process 가 연 파일에
+`/var/lib/zeta4s` 와 `PREFECT_HOME` 경로가 없음을 본다.
+
 ## Version Flow
 
 `main` 단일 장기 브랜치 기준:
