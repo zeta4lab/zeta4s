@@ -647,6 +647,11 @@ steps:
 ClickHouse table source 도 `table` 또는 `schema.table` 형식으로 쓴다. 여기서 schema 위치에는
 ClickHouse database 이름을 쓴다.
 
+ClickHouse extract 도 `where_clause`, query SQL, runtime predicate 의 bind parameter 를 `:name` 으로
+쓴다. Runtime 은 ClickHouse 로 보내기 직전에 이를 server-side parameter 로 바꾸며 규칙은
+[SQL step 의 `params`](sql.md) 와 같다. `datetime` bind 값은 microsecond 정밀도를 유지하므로
+`DateTime64` watermark/time window 경계가 잘리지 않는다.
+
 ### Elasticsearch search extract
 
 ```yaml

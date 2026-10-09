@@ -6,6 +6,7 @@ import logging
 
 from zeta4s.common.sql_identifiers import validate_sql_identifier
 from zeta4s.runtime.backends.clickhouse.client import get_clickhouse_source_client
+from zeta4s.runtime.backends.clickhouse.params import bind_clickhouse_named_params
 from zeta4s.runtime.rowset_models import ResumeCapability
 from zeta4s.runtime.source_reader import ColumnSpec, SourceBatch, reject_restart_only_continuation
 from zeta4s.runtime.types import clickhouse_type_from_arrow_field, is_clickhouse_not_null_type
@@ -29,8 +30,8 @@ class ClickHouseSelectReader:
     ) -> None:
         self.source_conn = source_conn
         self.source_object = source_object
-        self.query = query
-        self.params = params
+        # The rowset extract contract writes `:name` placeholders; ClickHouse binds `{name:Type}`.
+        self.query, self.params = bind_clickhouse_named_params(query, params)
         self.batch_size = int(batch_size)
         self.connections = connections
         self.column_specs: list[ColumnSpec] = []

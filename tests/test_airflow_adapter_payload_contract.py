@@ -1035,7 +1035,7 @@ class RowsetExtractRuntimeContractTest(unittest.TestCase):
         reader = ClickHouseSelectReader(
             source_conn="fake",
             source_object="fake_source",
-            query="select is_priority, discount_rate, sold_date from source.sales",
+            query="select is_priority, discount_rate, sold_date from source.sales where store_id = :store_id",
             params={"store_id": 1},
             batch_size=100,
         )
@@ -1053,6 +1053,7 @@ class RowsetExtractRuntimeContractTest(unittest.TestCase):
         self.assertEqual(reader.column_specs[1].precision, 32)
         self.assertEqual(client.parameters, {"store_id": 1})
         self.assertIn("DESCRIBE TABLE", client.sql)
+        self.assertIn("where store_id = {store_id:Int64}", client.sql)
 
     def test_rowset_writer_creates_parquet_with_watermark(self) -> None:
         from datetime import datetime

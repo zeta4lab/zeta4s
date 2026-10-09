@@ -8,6 +8,7 @@ from typing import Any, Callable
 
 from zeta4s.project.extract_sql import _mask_sql_string_literals, _strip_header_comments
 from zeta4s.runtime.backends.clickhouse.client import get_clickhouse_runtime_client
+from zeta4s.runtime.backends.clickhouse.params import bind_clickhouse_named_params
 from zeta4s.runtime.task_result import log_task_event
 
 logger = logging.getLogger(__name__)
@@ -37,9 +38,9 @@ def run_clickhouse_step(
         conn_id=conn_id,
     )
     client = get_clickhouse_runtime_client(conn_id, connections=connections)
-    params = bind_params(step, context, sql)
+    sql, params = bind_clickhouse_named_params(sql, bind_params(step, context, sql))
     if step_type == "check":
-        row = client.query(sql, parameters=params or None).first_row
+        row = client.query(sql, parameters=params).first_row
         if not _coerce_bool_output(row[0] if row else None):
             raise RuntimeError(
                 "native check failed: "
@@ -47,7 +48,7 @@ def run_clickhouse_step(
                 "(expected true or 1 for success)"
             )
         return 0
-    client.command(sql, parameters=params or None)
+    client.command(sql, parameters=params)
     return 0
 
 
@@ -61,12 +62,12 @@ def run_clickhouse_scalar_step(
     connections: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     sql = clickhouse_step_sql(project_root, step)
-    params = bind_params(step, context, sql)
+    sql, params = bind_clickhouse_named_params(sql, bind_params(step, context, sql))
     output_specs = step.get("outputs") or {}
     if not isinstance(output_specs, dict) or not output_specs:
         raise ValueError("sql.scalar step requires outputs mapping")
     client = get_clickhouse_runtime_client(conn_id, connections=connections)
-    row = client.query(sql, parameters=params or None).first_row
+    row = client.query(sql, parameters=params).first_row
     if row is None:
         raise RuntimeError(f"sql.scalar returned no rows: {step.get('name')}")
     outputs = {
