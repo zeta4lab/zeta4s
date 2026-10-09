@@ -435,6 +435,7 @@ class ScheduledStepExecutionContractTest(unittest.TestCase):
         )
 
         self.assertEqual(result["status"], StepExecutionState.SKIPPED.value)
+        self.assertTrue(result.get("reason"))
         self.assertEqual(self._execution_statuses(), ["skipped"])
         self.assertEqual(self._event_types(), ["step_skipped"])
 
