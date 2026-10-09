@@ -1,0 +1,57 @@
+job_id: elasticsearch_checkpoint_recovery
+schedule: null
+steps:
+  - step_id: delete_recovery_index
+    type: elasticsearch.command
+    conn: elasticsearch_source
+    operation: request
+    request:
+      method: DELETE
+      path: /checkpoint-recovery?ignore_unavailable=true
+
+  - step_id: create_recovery_index
+    type: elasticsearch.command
+    conn: elasticsearch_source
+    depends_on: [delete_recovery_index]
+    operation: request
+    request:
+      method: PUT
+      path: /checkpoint-recovery
+      body: elasticsearch/sales.index.json
+
+  - step_id: seed_recovery_documents
+    type: elasticsearch.command
+    conn: elasticsearch_source
+    depends_on: [create_recovery_index]
+    operation: bulk
+    target:
+      index: checkpoint-recovery
+    source:
+      file: elasticsearch/checkpoint-recovery.bulk.ndjson
+      format: ndjson
+    refresh: true
+
+  - step_id: extract_recovery_documents
+    type: elasticsearch.extract
+    conn: elasticsearch_source
+    depends_on: [seed_recovery_documents]
+    batch_size: 1
+    retry:
+      max_attempts: 2
+      delay_seconds: 0
+    source:
+      kind: search
+      index: checkpoint-recovery
+      request_timeout_seconds: 5
+      query: {match_all: {}}
+      sort: [{sale_id: asc}]
+      fields:
+        - {column: sale_id, path: sale_id, nullable: false, type: int, precision: 19}
+        - {column: customer_id, path: customer_id, nullable: false, type: str}
+    output:
+      recovery_rows:
+        kind: rowset
+
+  - step_id: confirm_recovery
+    type: noop
+    depends_on: [extract_recovery_documents]

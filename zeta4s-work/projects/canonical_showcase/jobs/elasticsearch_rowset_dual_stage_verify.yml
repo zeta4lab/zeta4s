@@ -1,0 +1,292 @@
+job_id: elasticsearch_rowset_dual_stage_verify
+schedule: null
+steps:
+  - step_id: delete_sales_index
+    type: elasticsearch.command
+    conn: elasticsearch_source
+    operation: request
+    request:
+      method: DELETE
+      path: /sales-documents?ignore_unavailable=true
+
+  - step_id: create_sales_index
+    type: elasticsearch.command
+    conn: elasticsearch_source
+    depends_on:
+      - delete_sales_index
+    operation: request
+    request:
+      method: PUT
+      path: /sales-documents
+      body: elasticsearch/sales.index.json
+
+  - step_id: seed_sales_documents
+    type: elasticsearch.command
+    conn: elasticsearch_source
+    depends_on:
+      - create_sales_index
+    operation: bulk
+    target:
+      index: sales-documents
+    source:
+      file: elasticsearch/sales.bulk.ndjson
+      format: ndjson
+    refresh: true
+
+  - step_id: fetch_sales_documents
+    type: elasticsearch.extract
+    conn: elasticsearch_source
+    batch_size: 1
+    retry:
+      max_attempts: 2
+      delay_seconds: 0
+    depends_on:
+      - seed_sales_documents
+    source:
+      kind: search
+      index: sales-documents
+      query:
+        match_all: {}
+      sort:
+        - sale_id: asc
+      fields:
+        - column: sale_id
+          path: sale_id
+          nullable: false
+          type: int
+          precision: 19
+        - column: store_id
+          path: store_id
+          nullable: false
+          type: int
+          precision: 5
+        - column: product_id
+          path: product_id
+          nullable: false
+          type: int
+          precision: 10
+        - column: customer_id
+          path: customer_id
+          nullable: false
+          type: str
+        - column: quantity
+          path: quantity
+          nullable: false
+          type: int
+          precision: 3
+        - column: unit_price_cents
+          path: unit_price_cents
+          nullable: false
+          type: int
+          precision: 10
+        - column: amount_cents
+          path: amount_cents
+          nullable: false
+          type: int
+          precision: 19
+        - column: amount
+          path: amount
+          nullable: false
+          type: decimal
+          precision: 18
+          scale: 2
+        - column: discount_rate
+          path: discount_rate
+          nullable: false
+          type: float
+          precision: 32
+        - column: is_priority
+          path: is_priority
+          nullable: false
+          type: bool
+        - column: sold_date
+          path: sold_date
+          nullable: false
+          type: date
+        - column: sold_at
+          path: sold_at
+          nullable: false
+          type: timestamp
+          datetime_precision: 6
+    output:
+      sales_rows:
+        kind: rowset
+
+  - step_id: stage_sales_rows_clickhouse
+    type: clickhouse.stage
+    conn: clickhouse_stage
+    depends_on:
+      - fetch_sales_documents
+    map:
+      fetch_sales_documents.sales_rows: mart.stg_es_sales
+
+  - step_id: stage_sales_rows_oracle
+    type: oracle.stage
+    conn: oracle_stage
+    depends_on:
+      - fetch_sales_documents
+    map:
+      fetch_sales_documents.sales_rows: stg_es_sales
+
+  - step_id: reset_clickhouse_sales_metrics
+    type: clickhouse.sql
+    conn: clickhouse_stage
+    depends_on:
+      - stage_sales_rows_clickhouse
+    query: sql/clickhouse/elasticsearch_rowset/reset_sales_metrics.sql
+
+  - step_id: build_clickhouse_sales_metrics
+    type: clickhouse.sql
+    conn: clickhouse_stage
+    depends_on:
+      - reset_clickhouse_sales_metrics
+    query: sql/clickhouse/elasticsearch_rowset/build_sales_metrics.sql
+
+  - step_id: delete_sales_write_index
+    type: elasticsearch.command
+    conn: elasticsearch_source
+    depends_on:
+      - stage_sales_rows_clickhouse
+    operation: request
+    request:
+      method: DELETE
+      path: /sales-write?ignore_unavailable=true
+
+  - step_id: create_sales_write_index
+    type: elasticsearch.command
+    conn: elasticsearch_source
+    depends_on:
+      - delete_sales_write_index
+    operation: request
+    request:
+      method: PUT
+      path: /sales-write
+      body: elasticsearch/sales.index.json
+
+  - step_id: extract_sales_write_seed
+    type: clickhouse.extract
+    conn: clickhouse_stage
+    depends_on:
+      - create_sales_write_index
+    source:
+      kind: query
+      query: sql/clickhouse/elasticsearch_rowset/extract_sales_write_seed.sql
+    output:
+      sales_write_seed_rows:
+        kind: rowset
+
+  - step_id: write_sales_write_seed
+    type: elasticsearch.write
+    conn: elasticsearch_source
+    depends_on:
+      - extract_sales_write_seed
+    map:
+      extract_sales_write_seed.sales_write_seed_rows:
+        index: sales-write
+        mode: replace
+        key:
+          - sale_id
+        refresh: true
+        columns:
+          - sale_id
+          - store_id
+          - product_id
+          - customer_id
+          - quantity
+          - unit_price_cents
+          - amount_cents
+          - amount
+          - discount_rate
+          - is_priority
+          - sold_date
+          - sold_at
+
+  - step_id: extract_sales_write_delta
+    type: clickhouse.extract
+    conn: clickhouse_stage
+    depends_on:
+      - write_sales_write_seed
+    source:
+      kind: query
+      query: sql/clickhouse/elasticsearch_rowset/extract_sales_write_delta.sql
+    output:
+      sales_write_delta_rows:
+        kind: rowset
+
+  - step_id: write_sales_write_delta
+    type: elasticsearch.write
+    conn: elasticsearch_source
+    depends_on:
+      - extract_sales_write_delta
+    map:
+      extract_sales_write_delta.sales_write_delta_rows:
+        index: sales-write
+        mode: upsert
+        key:
+          - sale_id
+        refresh: true
+        columns:
+          - sale_id
+          - store_id
+          - product_id
+          - customer_id
+          - quantity
+          - unit_price_cents
+          - amount_cents
+          - amount
+          - discount_rate
+          - is_priority
+          - sold_date
+          - sold_at
+
+  - step_id: extract_sales_write_append
+    type: clickhouse.extract
+    conn: clickhouse_stage
+    depends_on:
+      - write_sales_write_delta
+    source:
+      kind: query
+      query: sql/clickhouse/elasticsearch_rowset/extract_sales_write_append.sql
+    output:
+      sales_write_append_rows:
+        kind: rowset
+
+  - step_id: write_sales_write_append
+    type: elasticsearch.write
+    conn: elasticsearch_source
+    depends_on:
+      - extract_sales_write_append
+    map:
+      extract_sales_write_append.sales_write_append_rows:
+        index: sales-write
+        mode: append
+        key:
+          - sale_id
+        refresh: true
+        columns:
+          - sale_id
+          - store_id
+          - product_id
+          - customer_id
+          - quantity
+          - unit_price_cents
+          - amount_cents
+          - amount
+          - discount_rate
+          - is_priority
+          - sold_date
+          - sold_at
+
+  - step_id: reset_oracle_sales_metrics
+    type: oracle.sql
+    conn: oracle_stage
+    depends_on:
+      - stage_sales_rows_oracle
+    query: sql/oracle/elasticsearch_rowset/reset_sales_metrics.sql
+
+  - step_id: build_oracle_sales_metrics
+    type: oracle.sql
+    conn: oracle_stage
+    depends_on:
+      - reset_oracle_sales_metrics
+    query: sql/oracle/elasticsearch_rowset/build_sales_metrics.sql

@@ -1,0 +1,42 @@
+groups:
+  - name: zeta4s-runtime
+    rules:
+      - alert: ZETA4SJobLatestRunFailed
+        expr: zeta4s_latest_run_state{state=~"failed|upstream_failed"} == 1
+        for: 1m
+        labels:
+          severity: critical
+          service: zeta4s-runtime
+        annotations:
+          summary: zeta4s job latest run failed
+          description: Latest run failed for project={{ $labels.project }} job={{ $labels.job }}.
+
+      - alert: ZETA4STaskFailedRowsDetected
+        expr: zeta4s_latest_run_failed_rows > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: zeta4s-runtime
+        annotations:
+          summary: zeta4s job produced failed rows
+          description: Latest run has failed rows for project={{ $labels.project }} job={{ $labels.job }}.
+
+      - alert: ZETA4SRuntimeValidateFailed
+        expr: zeta4s_runtime_validate_status == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: zeta4s-runtime
+        annotations:
+          summary: z4s runtime contract validation failed
+          description: Runtime validate failed for project={{ $labels.project }}.
+
+      - alert: ZETA4SRuntimeEndpointCheckFailed
+        expr: zeta4s_runtime_check_status == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: zeta4s-runtime
+        annotations:
+          summary: z4s runtime endpoint check failed
+          description: Endpoint check failed for project={{ $labels.project }} connection={{ $labels.connection_id }} type={{ $labels.type }}.

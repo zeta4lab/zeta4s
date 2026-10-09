@@ -1,0 +1,6 @@
+project_id: canonical_showcase
+display_name: Canonical Showcase
+timezone: Asia/Seoul
+paths:
+  jobs: jobs
+  dbt: dbt

@@ -1,0 +1,118 @@
+{
+  "title": "zeta4s Airflow Pipeline",
+  "tags": ["zeta4s", "airflow", "runtime"],
+  "schemaVersion": 39,
+  "refresh": "15s",
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Registered Projects",
+      "type": "stat",
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+      "targets": [{"expr": "sum(zeta4s_project_registered)", "refId": "A"}]
+    },
+    {
+      "id": 2,
+      "title": "Registered DAG Jobs",
+      "type": "stat",
+      "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+      "targets": [{"expr": "sum(zeta4s_job_registered)", "refId": "A"}]
+    },
+    {
+      "id": 3,
+      "title": "Latest Failed Runs",
+      "type": "stat",
+      "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0},
+      "targets": [{"expr": "sum(zeta4s_latest_run_state{state=~\"failed|upstream_failed\"})", "refId": "A"}]
+    },
+    {
+      "id": 4,
+      "title": "Airflow Scrape",
+      "type": "stat",
+      "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+      "targets": [{"expr": "up{job=\"airflow\"}", "refId": "A"}]
+    },
+    {
+      "id": 5,
+      "title": "Latest Run State",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "targets": [
+        {
+          "expr": "zeta4s_latest_run_state",
+          "legendFormat": "{{project}}/{{job}} {{state}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Latest Run Failed Tasks",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+      "targets": [{"expr": "zeta4s_latest_run_failed_tasks", "legendFormat": "{{project}}/{{job}}", "refId": "A"}]
+    },
+    {
+      "id": 7,
+      "title": "Latest Task Failures",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 13},
+      "targets": [
+        {
+          "expr": "sum by (project, job, task_id, stage, state) (zeta4s_task_result_state{state=~\"failed|upstream_failed|up_for_retry\"})",
+          "legendFormat": "{{project}}/{{job}} {{task_id}} {{state}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Latest Task Duration",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 13},
+      "targets": [
+        {
+          "expr": "zeta4s_task_duration_seconds",
+          "legendFormat": "{{project}}/{{job}} {{task_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Scheduler Heartbeat",
+      "type": "timeseries",
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 21},
+      "targets": [{"expr": "rate(airflow_scheduler_heartbeat[1m])", "refId": "A"}]
+    },
+    {
+      "id": 10,
+      "title": "DAG Import Errors",
+      "type": "timeseries",
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 21},
+      "targets": [{"expr": "airflow_dag_processing_import_errors", "refId": "A"}]
+    },
+    {
+      "id": 11,
+      "title": "Executor Tasks",
+      "type": "timeseries",
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 21},
+      "targets": [
+        {"expr": "airflow_executor_running_tasks", "legendFormat": "running", "refId": "A"},
+        {"expr": "airflow_executor_queued_tasks", "legendFormat": "queued", "refId": "B"}
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Oracle Target Pool",
+      "type": "timeseries",
+      "gridPos": {"h": 7, "w": 24, "x": 0, "y": 28},
+      "targets": [
+        {"expr": "airflow_pool_open_slots_oracle_target", "legendFormat": "open", "refId": "A"},
+        {"expr": "airflow_pool_running_slots_oracle_target", "legendFormat": "running", "refId": "B"},
+        {"expr": "airflow_pool_queued_slots_oracle_target", "legendFormat": "queued", "refId": "C"}
+      ]
+    }
+  ]
+}

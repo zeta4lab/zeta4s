@@ -1,0 +1,4 @@
+<clickhouse>
+  <!-- 컨테이너 외부에서 접근 가능하도록 모든 인터페이스에 listen -->
+  <listen_host>0.0.0.0</listen_host>
+</clickhouse>

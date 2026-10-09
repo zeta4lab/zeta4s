@@ -1,0 +1,184 @@
+job_id: oracle_rowset_stage_verify
+schedule: null
+steps:
+  - step_id: reset_sales_source
+    type: oracle.sql
+    conn: oracle_runtime
+    query: sql/oracle/oracle_rowset/reset_sales_source.sql
+
+  - step_id: seed_sales_source
+    type: oracle.sql
+    conn: oracle_runtime
+    depends_on:
+      - reset_sales_source
+    query: sql/oracle/oracle_rowset/seed_sales_source.sql
+
+  - step_id: fetch_sales_rows
+    type: oracle.extract
+    conn: oracle_runtime
+    depends_on:
+      - seed_sales_source
+    source:
+      kind: query
+      query: sql/oracle/oracle_rowset/extract_sales_rows.sql
+    output:
+      sales_rows:
+        kind: rowset
+
+  - step_id: stage_sales_rows
+    type: oracle.stage
+    conn: oracle_runtime
+    depends_on:
+      - fetch_sales_rows
+    map:
+      fetch_sales_rows.sales_rows: stg_sales
+
+  - step_id: reset_sales_metrics
+    type: oracle.sql
+    conn: oracle_runtime
+    depends_on:
+      - stage_sales_rows
+    query: sql/oracle/oracle_rowset/reset_sales_metrics.sql
+
+  - step_id: build_sales_metrics
+    type: oracle.sql
+    conn: oracle_runtime
+    depends_on:
+      - reset_sales_metrics
+    query: sql/oracle/oracle_rowset/build_sales_metrics.sql
+
+  - step_id: extract_staged_sales_upsert_seed
+    type: oracle.extract
+    conn: oracle_runtime
+    depends_on:
+      - stage_sales_rows
+    source:
+      kind: query
+      query: sql/oracle/oracle_rowset/extract_staged_sales_upsert_seed.sql
+    output:
+      sales_upsert_seed_rows:
+        kind: rowset
+
+  - step_id: write_sales_upsert_seed
+    type: clickhouse.write
+    conn: clickhouse_target
+    depends_on:
+      - extract_staged_sales_upsert_seed
+    map:
+      extract_staged_sales_upsert_seed.sales_upsert_seed_rows:
+        table: oracle_write_verify.sales_upsert
+        mode: replace
+        key:
+          - sale_id
+        order_by:
+          - sale_id
+        columns:
+          - sale_id
+          - store_id
+          - product_id
+          - customer_id
+          - quantity
+          - unit_price_cents
+          - amount_cents
+          - amount
+          - discount_rate
+          - is_priority
+          - sold_date
+          - sold_at
+
+  - step_id: mutate_staged_sales_for_upsert
+    type: oracle.sql
+    conn: oracle_runtime
+    depends_on:
+      - write_sales_upsert_seed
+    query: sql/oracle/oracle_rowset/mutate_staged_sales_for_upsert.sql
+
+  - step_id: extract_staged_sales_upsert_delta
+    type: oracle.extract
+    conn: oracle_runtime
+    depends_on:
+      - mutate_staged_sales_for_upsert
+    source:
+      kind: query
+      query: sql/oracle/oracle_rowset/extract_staged_sales_upsert_delta.sql
+    output:
+      sales_upsert_delta_rows:
+        kind: rowset
+
+  - step_id: write_sales_upsert_delta
+    type: clickhouse.write
+    conn: clickhouse_target
+    depends_on:
+      - extract_staged_sales_upsert_delta
+    map:
+      extract_staged_sales_upsert_delta.sales_upsert_delta_rows:
+        table: oracle_write_verify.sales_upsert
+        mode: upsert
+        key:
+          - sale_id
+        order_by:
+          - sale_id
+        columns:
+          - sale_id
+          - store_id
+          - product_id
+          - customer_id
+          - quantity
+          - unit_price_cents
+          - amount_cents
+          - amount
+          - discount_rate
+          - is_priority
+          - sold_date
+          - sold_at
+
+  - step_id: extract_staged_sales_append_rows
+    type: oracle.extract
+    conn: oracle_runtime
+    depends_on:
+      - write_sales_upsert_delta
+    source:
+      kind: query
+      query: sql/oracle/oracle_rowset/extract_staged_sales_append_rows.sql
+    output:
+      sales_append_rows:
+        kind: rowset
+
+  - step_id: write_sales_append_rows
+    type: clickhouse.write
+    conn: clickhouse_target
+    depends_on:
+      - extract_staged_sales_append_rows
+    map:
+      extract_staged_sales_append_rows.sales_append_rows:
+        table: oracle_write_verify.sales_upsert
+        mode: append
+        order_by:
+          - sale_id
+        columns:
+          - sale_id
+          - store_id
+          - product_id
+          - customer_id
+          - quantity
+          - unit_price_cents
+          - amount_cents
+          - amount
+          - discount_rate
+          - is_priority
+          - sold_date
+          - sold_at
+
+  - step_id: reset_sales_upsert_metrics
+    type: clickhouse.sql
+    conn: clickhouse_target
+    depends_on:
+      - write_sales_append_rows
+    query: sql/clickhouse/oracle_rowset/reset_sales_upsert_metrics.sql
+
+  - step_id: build_sales_upsert_metrics
+    type: clickhouse.sql
+    conn: clickhouse_target
+    depends_on:
+      - reset_sales_upsert_metrics
+    query: sql/clickhouse/oracle_rowset/build_sales_upsert_metrics.sql

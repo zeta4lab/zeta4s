@@ -1,0 +1,13 @@
+job_id: scheduler_failure
+schedule:
+  interval_seconds: 3600
+  timezone: Asia/Seoul
+  paused: true
+steps:
+  - step_id: fail_check
+    type: sql.check
+    conn: clickhouse_runtime
+    sql: SELECT 0
+    retry:
+      max_attempts: 2
+      delay_seconds: 0

@@ -1,0 +1,41 @@
+# Airflow scheduler / dag-processor 에 붙이는 zeta4s 배선.
+#
+#   kubectl -n zeta4s patch statefulset airflow-scheduler \
+#     --patch-file deploy/k3s/patches/airflow-scheduler.yaml
+#
+# zeta4s 는 Airflow 를 배포하지 않는다. 공식 배포 방식의 workload 이름과 container
+# 이름은 환경마다 다르므로, 아래 container name 을 그 배포에 맞게 바꿔 쓴다.
+# Helm 을 쓴다면 같은 내용을 values 의 extraEnv / extraVolumeMounts 로 옮긴다.
+#
+# 이 배선이 없으면 generated DAG 가 internal API 를 호출하지 못하고, Airflow 가
+# 생성된 DAG 파일 자체를 보지 못해 `z4s api deploy` 가 discovery 에서 timeout 된다.
+spec:
+  template:
+    metadata:
+      labels:
+        # NetworkPolicy(40-networkpolicy.yaml)가 이 label 로 egress 를 연다.
+        zeta4s.io/runtime: scheduler
+    spec:
+      containers:
+        - name: scheduler
+          env:
+            - name: ZETA4S_API_INTERNAL_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: zeta4s-scheduler-config
+                  key: ZETA4S_API_INTERNAL_URL
+            # generated DAG source 가 os.environ 으로 읽으므로 env 로 준다.
+            - name: ZETA4S_RUNTIME_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: zeta4s-runtime-internal-token
+                  key: ZETA4S_RUNTIME_INTERNAL_TOKEN
+          volumeMounts:
+            # zeta4s-api 가 만들고 Airflow 가 읽는 유일한 공유 지점이다.
+            # master keyring 과 외부 자격증명 Secret 은 받지 않는다.
+            - name: zeta4s-airflow-dags
+              mountPath: /opt/airflow/dags
+      volumes:
+        - name: zeta4s-airflow-dags
+          persistentVolumeClaim:
+            claimName: zeta4s-airflow-dags

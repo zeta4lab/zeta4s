@@ -1,0 +1,36 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Airflow StatsD 메트릭: Airflow -> statsd-exporter:9125, Prometheus -> :9102/metrics
+  - job_name: 'airflow'
+    static_configs:
+      - targets: ['statsd-exporter:9102']
+    metrics_path: /metrics
+
+  - job_name: 'zeta4s-api'
+    static_configs:
+      - targets: ['zeta4s-api:8088']
+    metrics_path: /metrics
+
+  # Metastore 구현체 메트릭 엔드포인트
+  # DNS SD로 컨테이너 IP 재시작 후에도 자동 갱신 (static_configs는 startup 시 1회만 resolve)
+  - job_name: 'metastore'
+    dns_sd_configs:
+      - names: ['metastore']
+        type: 'A'
+        port: 9363
+    metrics_path: /metrics

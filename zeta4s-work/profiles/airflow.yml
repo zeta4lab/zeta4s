@@ -1,0 +1,98 @@
+scheduler: airflow
+api_endpoint: http://127.0.0.1:8088
+token_env: ZETA4S_API_TOKEN
+connections:
+  clickhouse_runtime:
+    type: clickhouse
+    host: metastore
+    port: 8123
+    username: metastore
+    password_ref: local.clickhouse_runtime.password
+    database: default
+  oracle_target:
+    type: oracle
+    host: oracle
+    port: 1521
+    username: showcase_src
+    password_ref: local.oracle_target.password
+    database: FREEPDB1
+    options:
+      service_name: FREEPDB1
+  oracle_runtime:
+    type: oracle
+    host: oracle
+    port: 1521
+    username: showcase_src
+    password_ref: local.oracle_runtime.password
+    database: FREEPDB1
+    options:
+      service_name: FREEPDB1
+  clickhouse_target:
+    type: clickhouse
+    host: metastore
+    port: 8123
+    username: metastore
+    password_ref: local.clickhouse_target.password
+    database: default
+  elasticsearch_source:
+    type: elasticsearch
+    host: elasticsearch
+    port: 9200
+  clickhouse_stage:
+    type: clickhouse
+    host: metastore
+    port: 8123
+    username: metastore
+    password_ref: local.clickhouse_stage.password
+    database: default
+  oracle_stage:
+    type: oracle
+    host: oracle
+    port: 1521
+    username: showcase_src
+    password_ref: local.oracle_stage.password
+    database: FREEPDB1
+    options:
+      service_name: FREEPDB1
+  retail_clickhouse:
+    type: clickhouse
+    host: metastore
+    port: 8123
+    username: metastore
+    password_ref: local.retail_clickhouse.password
+    database: default
+  retail_oracle:
+    type: oracle
+    host: oracle
+    port: 1521
+    username: showcase_src
+    password_ref: local.retail_oracle.password
+    database: FREEPDB1
+    schema: SHOWCASE_SRC
+    options:
+      service_name: FREEPDB1
+  retail_priority_api:
+    type: http
+    host: example-http-api
+    port: 8099
+    schema: http
+  perf_clickhouse:
+    type: clickhouse
+    host: metastore
+    port: 8123
+    username: metastore
+    password_ref: local.perf_clickhouse.password
+    database: default
+  perf_oracle:
+    type: oracle
+    host: oracle
+    port: 1521
+    username: showcase_src
+    password_ref: local.perf_oracle.password
+    database: FREEPDB1
+    options:
+      service_name: FREEPDB1
+  perf_elasticsearch:
+    type: elasticsearch
+    host: elasticsearch
+    port: 9200

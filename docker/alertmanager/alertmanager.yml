@@ -1,0 +1,28 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: noop
+  group_by: ['alertname', 'service', 'project', 'job']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - receiver: noop
+      matchers:
+        - severity="critical"
+      repeat_interval: 1h
+
+inhibit_rules:
+  - source_matchers:
+      - alertname="ZETA4SApiDown"
+    target_matchers:
+      - service="zeta4s-runtime"
+    equal: ['project']
+  - source_matchers:
+      - alertname="MetastoreDown"
+    target_matchers:
+      - service="metastore"
+
+receivers:
+  - name: noop

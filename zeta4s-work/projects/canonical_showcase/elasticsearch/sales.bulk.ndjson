@@ -1,0 +1,10 @@
+{"index":{"_id":"sale-0000001"}}
+{"sale_id":1,"store_id":1,"product_id":1,"customer_id":"customer-1","quantity":1,"unit_price_cents":100,"amount_cents":100,"amount":"1.00","discount_rate":0.0,"is_priority":true,"sold_date":"2026-01-01","sold_at":"2026-01-01T00:00:00.000000Z"}
+{"index":{"_id":"sale-0000002"}}
+{"sale_id":2,"store_id":2,"product_id":2,"customer_id":"customer-2","quantity":2,"unit_price_cents":101,"amount_cents":202,"amount":"2.02","discount_rate":0.1,"is_priority":false,"sold_date":"2026-01-02","sold_at":"2026-01-01T00:00:01.000000Z"}
+{"index":{"_id":"sale-0000003"}}
+{"sale_id":3,"store_id":3,"product_id":3,"customer_id":"customer-3","quantity":3,"unit_price_cents":102,"amount_cents":306,"amount":"3.06","discount_rate":0.2,"is_priority":true,"sold_date":"2026-01-03","sold_at":"2026-01-01T00:00:02.000000Z"}
+{"index":{"_id":"sale-0000004"}}
+{"sale_id":4,"store_id":4,"product_id":4,"customer_id":"customer-4","quantity":4,"unit_price_cents":103,"amount_cents":412,"amount":"4.12","discount_rate":0.3,"is_priority":false,"sold_date":"2026-01-04","sold_at":"2026-01-01T00:00:03.000000Z"}
+{"index":{"_id":"sale-0000005"}}
+{"sale_id":5,"store_id":5,"product_id":5,"customer_id":"customer-5","quantity":5,"unit_price_cents":104,"amount_cents":520,"amount":"5.20","discount_rate":0.4,"is_priority":true,"sold_date":"2026-01-05","sold_at":"2026-01-01T00:00:04.000000Z"}

@@ -1,0 +1,613 @@
+name: zeta4s
+
+# engine 은 외부다. 어느 쪽도 기본이 아니고, engine 이 없어도 zeta4s-api 는 뜬다.
+#
+#   docker compose --profile airflow up      (기본 스택 + Airflow engine)
+#   docker compose --profile prefect up      (기본 스택 + Prefect engine)
+#
+# 두 profile 은 대칭이다. 같은 project 를 어느 쪽으로 실행할지는 배포가 고른다.
+#
+# 그 밖의 프로필:
+#   docker compose up                        (zeta4s 기본 스택 — engine 없음)
+#   docker compose --profile asset up        (기본 스택 + 로컬 source/target/search asset)
+#   docker compose --profile external-example-http-api up (HTTP lookup 예제 API)
+#   docker compose --profile obs up          (기본 스택 + Grafana 관측성 UI)
+#   docker compose --profile kibana up       (기본 스택 + Elasticsearch + Kibana UI)
+#   docker compose --profile checkpoint up   (기본 스택 + Iceberg REST Catalog 검증 스택)
+
+# engine 과 무관한 zeta4s 설정이다. zeta4s-api 는 이것만 받는다.
+#
+# **zeta4s-api 에 AIRFLOW__* 를 주지 않는다.** 그중 SQL_ALCHEMY_CONN 이 결정적이다. DSN 이
+# 있으면 `create_session` 과 `airflow.settings.Session` 이 metastore 에 직접 붙을 수 있고,
+# 그때 zeta4s-api 는 Airflow 를 원격 서비스로 보는 것이 아니라 metastore 를 공유하는 같은
+# 배포 단위가 된다. 정적 검사를 우회하는 새 경로가 생겨도 붙을 곳이 없으면 막힌다.
+x-zeta4s-env: &zeta4s-env
+  ZETA4S_METASTORE_TYPE: ${ZETA4S_METASTORE_TYPE:-postgres}
+  ZETA4S_METASTORE_DSN: ${ZETA4S_METASTORE_DSN:-postgresql://airflow:airflow@postgres:5432/zeta4s_metastore}
+  ZETA4S_METASTORE_HOST: metastore
+  ZETA4S_METASTORE_HTTP_PORT: 8123
+  ZETA4S_METASTORE_USER: ${METASTORE_USER:-metastore}
+  ZETA4S_METASTORE_PASSWORD: ${METASTORE_PASSWORD:-metastore_pwd}
+  ZETA4S_API_INTERNAL_URL: http://zeta4s-api:8088
+  ZETA4S_API_TOKEN: ${ZETA4S_API_TOKEN:-}
+  ZETA4S_ICEBERG_CATALOG_URI: ${ZETA4S_ICEBERG_CATALOG_URI:-http://lakekeeper:8181/catalog}
+  ZETA4S_ICEBERG_WAREHOUSE: ${ZETA4S_ICEBERG_WAREHOUSE:-warehouse}
+  ZETA4S_ICEBERG_CATALOG_TOKEN: ${ZETA4S_ICEBERG_CATALOG_TOKEN:-}
+  ZETA4S_ROWSET_CHECKPOINT_TARGET_BYTES: ${ZETA4S_ROWSET_CHECKPOINT_TARGET_BYTES:-134217728}
+  ZETA4S_ROWSET_CHECKPOINT_MAX_INTERVAL_SECONDS: ${ZETA4S_ROWSET_CHECKPOINT_MAX_INTERVAL_SECONDS:-60}
+  ZETA4S_RUNTIME_INTERNAL_TOKEN: ${ZETA4S_RUNTIME_INTERNAL_TOKEN:?Set ZETA4S_RUNTIME_INTERNAL_TOKEN by running scripts/configure_open_env.sh}
+
+x-airflow-common: &airflow-common
+  image: ${AIRFLOW_IMAGE:-apache/airflow:${AIRFLOW_VERSION:-3.3.0}-python${PYTHON_VERSION:-3.12}}
+  environment: &airflow-env
+    ZETA4S_API_INTERNAL_URL: http://zeta4s-api:8088
+    ZETA4S_RUNTIME_INTERNAL_TOKEN: ${ZETA4S_RUNTIME_INTERNAL_TOKEN:?Set ZETA4S_RUNTIME_INTERNAL_TOKEN by running scripts/configure_open_env.sh}
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__FERNET_KEY: 'bvGrwoX4qRHjZM0CofRJOWyOm5xSNVXdvdmYk7V7Vws='
+    PYTHONWARNINGS: "ignore:airflow.exceptions.ParamValidationError is deprecated,ignore:Import 'DAG' directly from the airflow module is deprecated,ignore:airflow.exceptions.AirflowSkipException is deprecated"
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: 'true'
+    AIRFLOW__OPENLINEAGE__NAMESPACE: 'zeta4s-local'
+    AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+    # Airflow 3.x task SDK가 apiserver와 통신할 internal URL — 컨테이너 hostname 명시
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
+    AIRFLOW__EXECUTION_API__BASE_URL: 'http://airflow-apiserver:8080/execution/'
+    # 모든 컨테이너가 같은 secret_key + JWT secret 공유 — task SDK auth 동작 조건
+    # (Airflow 3.x JWT 검증은 [api_auth] 섹션 사용)
+    AIRFLOW__API__SECRET_KEY: 'zeta4s-shared-secret-do-not-use-in-prod'
+    AIRFLOW__API_AUTH__JWT_SECRET: 'zeta4s-jwt-shared-secret-do-not-use-in-prod'
+    AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_PASSWORDS_FILE: '/opt/airflow/auth/simple_auth_manager_passwords.json'
+    AIRFLOW__METRICS__STATSD_ON: 'true'
+    AIRFLOW__METRICS__STATSD_HOST: statsd-exporter
+    AIRFLOW__METRICS__STATSD_PORT: 9125
+    AIRFLOW__LOGGING__UVICORN_LOGGING_LEVEL: 'ERROR'
+    AIRFLOW__SCHEDULER__TASK_INSTANCE_HEARTBEAT_TIMEOUT: ${AIRFLOW_TASK_INSTANCE_HEARTBEAT_TIMEOUT:-300}
+    AIRFLOW__SCHEDULER__TASK_INSTANCE_HEARTBEAT_TIMEOUT_DETECTION_INTERVAL: ${AIRFLOW_TASK_INSTANCE_HEARTBEAT_TIMEOUT_DETECTION_INTERVAL:-10}
+    # zeta4s-api가 배포 시 generated DAG 파일을 추가하거나 atomic replace한다.
+    # 신규 파일 발견과 기존 파일 재파싱이 deploy timeout(120초) 안에 수렴해야 한다.
+    AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: ${AIRFLOW_DAG_PROCESSOR_REFRESH_INTERVAL:-10}
+    AIRFLOW__DAG_PROCESSOR__MIN_FILE_PROCESS_INTERVAL: ${AIRFLOW_DAG_PROCESSOR_MIN_FILE_PROCESS_INTERVAL:-10}
+    AIRFLOW_UID: ${AIRFLOW_UID:-50000}
+  volumes:
+    - airflow-dags:/opt/airflow/dags
+    - airflow-logs:/opt/airflow/logs
+    - airflow-auth:/opt/airflow/auth
+  user: "${AIRFLOW_UID:-50000}:0"
+
+services:
+  # ============================================================
+  # zeta4s 기본 스택 — Airflow + metastore + dbt
+  # ============================================================
+
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:${POSTGRES_VERSION:-18.4-alpine}}
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      # Postgres 18+ recommended: 단일 마운트 /var/lib/postgresql
+      # PGDATA는 이미지 기본 경로(/var/lib/postgresql/18/docker)를 그대로 사용
+      - postgres-data:/var/lib/postgresql
+      - ./docker/postgres:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "${POSTGRES_BIND_HOST:-0.0.0.0}:${POSTGRES_PORT:-15432}:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 10
+
+  oracle:
+    # Local source/target DB asset. zeta4s talks to it through Airflow
+    # connections, but the zeta4s runtime stack does not own this service.
+    image: ${ORACLE_IMAGE:-gvenzl/oracle-free:23-slim}
+    shm_size: 1g
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_PASSWORD:-oracle}
+      ORACLE_CHARACTERSET: AL32UTF8
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+      - ./docker/oracle:/container-entrypoint-initdb.d
+    ports:
+      - "${ORACLE_PORT:-11521}:1521"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 30
+      start_period: 5m
+    profiles: [asset]
+
+  elasticsearch:
+    image: ${ELASTICSEARCH_IMAGE:-docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_VERSION:-8.15.4}}
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: 'false'
+      ES_JAVA_OPTS: ${ELASTICSEARCH_JAVA_OPTS:--Xms512m -Xmx512m}
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    ports:
+      - "${ELASTICSEARCH_PORT:-19200}:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=1s' >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    profiles: [asset, kibana]
+
+  example-http-api:
+    image: ${EXAMPLE_HTTP_API_IMAGE:-python:${PYTHON_VERSION:-3.12}-slim}
+    entrypoint: ["python"]
+    command: ["/app/app.py"]
+    environment:
+      EXAMPLE_HTTP_API_PORT: 8099
+    volumes:
+      - ./docker/example-http-api:/app:ro
+    ports:
+      - "${EXAMPLE_HTTP_API_HOST:-127.0.0.1}:${EXAMPLE_HTTP_API_PORT:-8099}:8099"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8099/healthz', timeout=2).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    profiles: [external-example-http-api]
+
+  metastore:
+    image: ${METASTORE_IMAGE:-clickhouse/clickhouse-server:${METASTORE_VERSION:-26.4}}
+    environment:
+      CLICKHOUSE_USER: ${METASTORE_USER:-metastore}
+      CLICKHOUSE_PASSWORD: ${METASTORE_PASSWORD:-metastore_pwd}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - metastore-data:/var/lib/clickhouse
+      # init scripts (.sql만 자동 실행 — config.d는 별도 마운트)
+      - ./docker/metastore:/docker-entrypoint-initdb.d
+      # Prometheus endpoint config (영속화)
+      - ./docker/metastore/config.d:/etc/clickhouse-server/config.d:ro
+    ports:
+      - "${METASTORE_HTTP_PORT:-18123}:8123"
+      - "${METASTORE_TCP_PORT:-19000}:9000"
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      retries: 10
+    profiles: [asset]
+
+  lakekeeper-migrate:
+    image: ${LAKEKEEPER_IMAGE:-quay.io/lakekeeper/catalog:v0.13.1}
+    environment:
+      LAKEKEEPER__PG_ENCRYPTION_KEY: ${LAKEKEEPER_PG_ENCRYPTION_KEY:-This-is-NOT-Secure!}
+      LAKEKEEPER__PG_DATABASE_URL_READ: postgresql://airflow:airflow@postgres:5432/lakekeeper
+      LAKEKEEPER__PG_DATABASE_URL_WRITE: postgresql://airflow:airflow@postgres:5432/lakekeeper
+    command: ["migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    profiles: [checkpoint]
+
+  lakekeeper:
+    image: ${LAKEKEEPER_IMAGE:-quay.io/lakekeeper/catalog:v0.13.1}
+    environment:
+      LAKEKEEPER__PG_ENCRYPTION_KEY: ${LAKEKEEPER_PG_ENCRYPTION_KEY:-This-is-NOT-Secure!}
+      LAKEKEEPER__PG_DATABASE_URL_READ: postgresql://airflow:airflow@postgres:5432/lakekeeper
+      LAKEKEEPER__PG_DATABASE_URL_WRITE: postgresql://airflow:airflow@postgres:5432/lakekeeper
+    command: ["serve"]
+    ports:
+      - "${LAKEKEEPER_PORT:-18181}:8181"
+    depends_on:
+      lakekeeper-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/home/nonroot/lakekeeper", "healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    profiles: [checkpoint]
+
+  lakekeeper-init:
+    image: ${CURL_IMAGE:-curlimages/curl:8.17.0}
+    depends_on:
+      lakekeeper:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        status=$$(curl -sS -o /tmp/bootstrap.json -w '%{http_code}' -X POST \
+          http://lakekeeper:8181/management/v1/bootstrap \
+          -H 'Content-Type: application/json' \
+          --data '{"accept-terms-of-use":true}')
+        case "$$status" in
+          200|201|204) ;;
+          400) grep -q 'CatalogAlreadyBootstrapped' /tmp/bootstrap.json ;;
+          *) exit 1 ;;
+        esac
+        status=$$(curl -sS -o /tmp/warehouse.json -w '%{http_code}' -X POST \
+          http://lakekeeper:8181/management/v1/warehouse \
+          -H 'Content-Type: application/json' \
+          --data '{"warehouse-name":"warehouse","storage-profile":{"type":"s3","bucket":"zeta4s-checkpoint","key-prefix":"warehouse","endpoint":"http://minio:19002","sts-endpoint":"http://minio:19002","region":"us-east-1","path-style-access":true,"flavor":"s3-compat","sts-enabled":true},"storage-credential":{"type":"s3","credential-type":"access-key","aws-access-key-id":"'"$${MINIO_ROOT_USER}"'","aws-secret-access-key":"'"$${MINIO_ROOT_PASSWORD}"'"},"delete-profile":{"type":"hard"}}')
+        case "$$status" in
+          200|201|204) ;;
+          400) grep -q 'CreateWarehouseStorageProfileOverlap' /tmp/warehouse.json ;;
+          *) exit 1 ;;
+        esac
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    restart: "no"
+    profiles: [checkpoint]
+
+  minio:
+    image: ${MINIO_IMAGE:-quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z}
+    command: ["server", "/data", "--address", ":19002", "--console-address", ":19092"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio-data:/data
+    ports:
+      - "${MINIO_API_PORT:-19002}:19002"
+      - "${MINIO_CONSOLE_PORT:-19092}:19092"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:19002/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    profiles: [checkpoint]
+
+  minio-init:
+    image: ${MINIO_CLIENT_IMAGE:-quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z}
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        mc alias set checkpoint http://minio:19002
+        "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}" &&
+        mc mb --ignore-existing checkpoint/zeta4s-checkpoint
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    restart: "no"
+    profiles: [checkpoint]
+
+  z4s-state-init:
+    image: ${ZETA4S_API_IMAGE:-ghcr.io/zeta4lab/zeta4s-api:${ZETA4S_IMAGE_TAG:-latest}}
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        set -e
+        mkdir -p /var/lib/zeta4s/artifacts /var/lib/zeta4s/registered /var/lib/zeta4s/runs
+        chown -R "${ZETA4S_RUNTIME_UID:-50000}:0" /var/lib/zeta4s
+        chmod -R ug+rwX /var/lib/zeta4s
+        # keyring 은 runtime state volume 밖이다. Prefect worker 가 그 volume 을
+        # 공유하므로 같은 곳에 두면 worker 가 master key 를 읽을 수 있다.
+        mkdir -p /var/lib/zeta4s-keyring
+        if [ ! -f /var/lib/zeta4s-keyring/master.json ]; then
+          python -c 'from pathlib import Path; from zeta4s.runtime.secrets import init_master_key_file; init_master_key_file(Path("/var/lib/zeta4s-keyring/master.json"))'
+        fi
+        chown "${ZETA4S_RUNTIME_UID:-50000}:0" /var/lib/zeta4s-keyring /var/lib/zeta4s-keyring/master.json
+        chmod 700 /var/lib/zeta4s-keyring
+        chmod 400 /var/lib/zeta4s-keyring/master.json
+        echo "z4s state permissions initialized for ZETA4S_RUNTIME_UID=${ZETA4S_RUNTIME_UID:-50000}"
+    environment:
+      ZETA4S_RUNTIME_UID: ${ZETA4S_RUNTIME_UID:-50000}
+    volumes:
+      - zeta4s-state:/var/lib/zeta4s
+      - zeta4s-keyring:/var/lib/zeta4s-keyring
+    user: "0:0"
+
+  airflow-auth-init:
+    image: ${AIRFLOW_IMAGE:-apache/airflow:${AIRFLOW_VERSION:-3.3.0}-python${PYTHON_VERSION:-3.12}}
+    user: "0:0"
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        set -e
+        cp /seed/simple_auth_manager_passwords.json /auth/simple_auth_manager_passwords.json
+        chown "${AIRFLOW_UID:-50000}:0" /auth/simple_auth_manager_passwords.json
+        chmod 600 /auth/simple_auth_manager_passwords.json
+    volumes:
+      - ./docker/airflow/simple_auth_manager_passwords.json:/seed/simple_auth_manager_passwords.json:ro
+      - airflow-auth:/auth
+    profiles: [airflow]
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        set -e
+        airflow db migrate
+        # Airflow 3.x SimpleAuthManager uses simple_auth_manager_passwords.json.
+        # `airflow users create` is for Airflow Flask AppBuilder auth and does not set the UI password here.
+        echo "Airflow init complete."
+    depends_on:
+      airflow-auth-init:
+        condition: service_completed_successfully
+      z4s-state-init:
+        condition: service_completed_successfully
+      statsd-exporter:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    profiles: [airflow]
+  # Airflow 3.x: webserver → api-server (UI + REST API, 포트 8080)
+  airflow-apiserver:
+    <<: *airflow-common
+    command: api-server
+    ports:
+      - "${AIRFLOW_PORT:-18080}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/api/v2/monitor/health"]
+      interval: 30s
+      retries: 10
+      start_period: 60s
+    depends_on:
+      z4s-state-init:
+        condition: service_completed_successfully
+      statsd-exporter:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    profiles: [airflow]
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    healthcheck:
+      # CMD-SHELL이라야 $HOSTNAME 변수 보간됨 (exec form은 리터럴 처리)
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname $$HOSTNAME"]
+      interval: 30s
+      retries: 5
+      start_period: 60s
+    depends_on:
+      z4s-state-init:
+        condition: service_completed_successfully
+      statsd-exporter:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    profiles: [airflow]
+  # Airflow 3.x: DAG 처리가 scheduler에서 분리됨 — 별도 컴포넌트 필수
+  airflow-dag-processor:
+    <<: *airflow-common
+    command: dag-processor
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type DagProcessorJob --hostname $$HOSTNAME"]
+      interval: 30s
+      retries: 5
+      start_period: 60s
+    depends_on:
+      z4s-state-init:
+        condition: service_completed_successfully
+      statsd-exporter:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    profiles: [airflow]
+  zeta4s-api:
+    # airflow-common 을 상속하지 않는다. engine 이 아니라 별도 배포 단위이므로 자기
+    # 이미지·환경·볼륨·UID·작업 디렉토리를 갖는다. engine 이미지 안에 zeta4s 가 들어가면
+    # 의존 방향이 뒤집힌다.
+    image: ${ZETA4S_API_IMAGE:?Set ZETA4S_API_IMAGE by running scripts/configure_open_env.sh}
+    # zeta4s-api와 Prefect worker가 공유하는 runtime state의 UID를 맞춘다.
+    user: "${ZETA4S_RUNTIME_UID:-50000}:0"
+    working_dir: /opt/zeta4s
+    environment:
+      # airflow-env 가 아니다. AIRFLOW__* 를 하나도 받지 않는다.
+      <<: *zeta4s-env
+      ZETA4S_API_HOME: /var/lib/zeta4s
+      ZETA4S_AIRFLOW_DAGS_DIR: /var/lib/zeta4s/airflow-dags
+      ZETA4S_API_HOST: 0.0.0.0
+      ZETA4S_API_PORT: 8088
+      ZETA4S_API_TOKEN: ${ZETA4S_API_TOKEN:-}
+      ZETA4S_OPERATION_LOCK_TIMEOUT: ${ZETA4S_OPERATION_LOCK_TIMEOUT:-}
+      ZETA4S_RUNTIME_OPERATION_TIMEOUT_MARGIN_SECONDS: ${ZETA4S_RUNTIME_OPERATION_TIMEOUT_MARGIN_SECONDS:-}
+      ZETA4S_DEPLOY_DAG_DISCOVERY_TIMEOUT_SECONDS: ${ZETA4S_DEPLOY_DAG_DISCOVERY_TIMEOUT_SECONDS:-}
+      ZETA4S_DEPLOY_DAG_STATE_TIMEOUT_SECONDS: ${ZETA4S_DEPLOY_DAG_STATE_TIMEOUT_SECONDS:-}
+      ZETA4S_UNDEPLOY_DAG_STATE_TIMEOUT_SECONDS: ${ZETA4S_UNDEPLOY_DAG_STATE_TIMEOUT_SECONDS:-}
+      ZETA4S_UNDEPLOY_ACTIVE_TERMINATE_TIMEOUT_SECONDS: ${ZETA4S_UNDEPLOY_ACTIVE_TERMINATE_TIMEOUT_SECONDS:-}
+      ZETA4S_UNDEPLOY_DAG_DELETE_TIMEOUT_SECONDS: ${ZETA4S_UNDEPLOY_DAG_DELETE_TIMEOUT_SECONDS:-}
+      ZETA4S_AIRFLOW_OPERATION_POLL_SECONDS: ${ZETA4S_AIRFLOW_OPERATION_POLL_SECONDS:-}
+      ZETA4S_AIRFLOW_ACTIVE_TERMINATE_POLL_SECONDS: ${ZETA4S_AIRFLOW_ACTIVE_TERMINATE_POLL_SECONDS:-}
+      # zeta4s-api 는 Airflow 를 REST 로만 다룬다. base_url 이 없으면 REST 경로가 꺼져
+      # 상태 변경이 동작하지 않으므로 개발 stack 기본값을 둔다.
+      ZETA4S_AIRFLOW_REST_API_BASE_URL: ${ZETA4S_AIRFLOW_REST_API_BASE_URL:-http://airflow-apiserver:8080}
+      ZETA4S_AIRFLOW_REST_API_TOKEN: ${ZETA4S_AIRFLOW_REST_API_TOKEN:-}
+      ZETA4S_AIRFLOW_REST_API_USERNAME: ${ZETA4S_AIRFLOW_REST_API_USERNAME:-admin}
+      ZETA4S_AIRFLOW_REST_API_PASSWORD: ${ZETA4S_AIRFLOW_REST_API_PASSWORD:-}
+      # 비밀번호는 값을 박지 않고 파일을 가리킨다. SimpleAuthManager 가 쓰는 파일이
+      # 그대로 정본이므로 개발 stack 에 자격증명을 새로 두지 않는다.
+      #
+      # **Airflow 이미지 안의 파일을 가리키지 않는다.** 이미지가 갈린 뒤로 zeta4s-api 는
+      # 그 파일을 볼 수 없다. 저장소의 원본을 직접 mount 하므로 정본은 여전히 하나다.
+      ZETA4S_AIRFLOW_REST_API_PASSWORD_FILE: ${ZETA4S_AIRFLOW_REST_API_PASSWORD_FILE:-/etc/zeta4s/airflow-rest-passwords.json}
+      ZETA4S_METASTORE_TYPE: ${ZETA4S_METASTORE_TYPE:-postgres}
+      ZETA4S_METASTORE_DSN: ${ZETA4S_METASTORE_DSN:-postgresql://airflow:airflow@postgres:5432/zeta4s_metastore}
+      ZETA4S_METASTORE_HOST: metastore
+      ZETA4S_METASTORE_HTTP_PORT: 8123
+      ZETA4S_METASTORE_USER: ${METASTORE_USER:-metastore}
+      ZETA4S_METASTORE_PASSWORD: ${METASTORE_PASSWORD:-metastore_pwd}
+      PREFECT_API_URL: http://prefect-server:4200/api
+    # airflow-logs 를 받지 않는다. task log 는 REST 로 읽으므로 볼륨을 공유할 이유가 없다.
+    volumes:
+      - zeta4s-state:/var/lib/zeta4s
+      # master keyring 은 zeta4s-api 만 받는다. Prefect worker 와 Airflow 는 받지 않는다.
+      - zeta4s-keyring:/var/lib/zeta4s-keyring:ro
+      - airflow-dags:/var/lib/zeta4s/airflow-dags
+      # SimpleAuthManager 의 passwords 파일이다. Airflow 이미지를 경유하지 않고 저장소의
+      # 원본을 그대로 읽는다.
+      - ./docker/airflow/simple_auth_manager_passwords.json:/etc/zeta4s/airflow-rest-passwords.json:ro
+    ports:
+      - "${ZETA4S_API_HOST_PORT:-18088}:8088"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8088/healthz', timeout=2).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    depends_on:
+      z4s-state-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+  prefect-server:
+    # 공식 이미지를 그대로 쓴다. zeta4s 를 전혀 쓰지 않으므로 우리 이미지일 이유가 없다 —
+    # engine 이 외부라는 것이 배포에서 그대로 드러난다. version 은 zeta4s-api 의 prefect
+    # SDK 와 맞춘다.
+    image: ${PREFECT_IMAGE:-prefecthq/prefect:${PREFECT_VERSION:-3.7.8}-python${PYTHON_VERSION:-3.12}}
+    entrypoint: prefect
+    command: ["server", "start", "--host", "0.0.0.0"]
+    environment:
+      PREFECT_HOME: /var/lib/prefect
+      PREFECT_SERVER_API_HOST: 0.0.0.0
+      # UI 는 브라우저에서 실행된다. bind 주소(0.0.0.0)를 API 주소로 노출하지 않고
+      # 현재 origin 의 /api 를 쓰면 localhost 와 Cloudflare Tunnel 양쪽에서 동작한다.
+      PREFECT_UI_API_URL: /api
+      PREFECT_SERVER_UI_SHOW_PROMOTIONAL_CONTENT: 'false'
+      PREFECT_API_DATABASE_CONNECTION_URL: postgresql+asyncpg://airflow:airflow@postgres:5432/prefect
+    volumes:
+      - prefect-data:/var/lib/prefect
+    ports:
+      - "${PREFECT_PORT:-14200}:4200"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health', timeout=2).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: [prefect]
+
+  prefect-worker:
+    # Airflow 이미지도 AIRFLOW__* 도 받지 않는다. Prefect engine 이 Airflow metastore DSN 을
+    # 입고 있던 것이 대칭이 깨진 자리였다. zeta4s-api 이미지는 zeta4s runtime 과 prefect SDK
+    # 를 갖고 airflow 는 없다 — prefect worker 에 필요한 것이 정확히 그것이다.
+    image: ${ZETA4S_API_IMAGE:?Set ZETA4S_API_IMAGE by running scripts/configure_open_env.sh}
+    user: "${ZETA4S_RUNTIME_UID:-50000}:0"
+    working_dir: /opt/zeta4s
+    entrypoint: prefect
+    command: ["worker", "start", "--pool", "zeta4s-internal", "--type", "process", "--create-pool-if-not-found"]
+    environment:
+      <<: *zeta4s-env
+      PREFECT_API_URL: http://prefect-server:4200/api
+      PREFECT_HOME: /var/lib/prefect
+      ZETA4S_API_HOME: /var/lib/zeta4s
+    volumes:
+      - zeta4s-state:/var/lib/zeta4s
+      - prefect-data:/var/lib/prefect
+    depends_on:
+      prefect-server:
+        condition: service_healthy
+      z4s-state-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    profiles: [prefect]
+
+  # ============================================================
+  # Observability — Airflow metrics export + optional Grafana UI
+  # ============================================================
+
+  statsd-exporter:
+    image: ${STATSD_EXPORTER_IMAGE:-prom/statsd-exporter:${STATSD_EXPORTER_VERSION:-v0.30.0-distroless}}
+    command:
+      - '--statsd.listen-udp=:9125'
+      - '--statsd.listen-tcp=:9125'
+      - '--web.listen-address=:9102'
+    ports:
+      - "${STATSD_EXPORTER_PORT:-19102}:9102"
+      - "${STATSD_EXPORTER_STATSD_PORT:-19125}:9125/udp"
+    profiles: [airflow]
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:${PROMETHEUS_VERSION:-v3.13.0}}
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+    ports:
+      - "${PROMETHEUS_PORT:-19090}:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      alertmanager:
+        condition: service_started
+
+  alertmanager:
+    image: ${ALERTMANAGER_IMAGE:-prom/alertmanager:${ALERTMANAGER_VERSION:-v0.33.1}}
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    ports:
+      - "${ALERTMANAGER_PORT:-19093}:9093"
+    volumes:
+      - ./docker/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana:${GRAFANA_VERSION:-13.0.3}}
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    ports:
+      - "${GRAFANA_PORT:-13000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    profiles: [obs]
+
+  kibana:
+    image: ${KIBANA_IMAGE:-docker.elastic.co/kibana/kibana:${KIBANA_VERSION:-8.15.4}}
+    ports:
+      - "${KIBANA_PORT:-15601}:5601"
+    volumes:
+      - ./docker/kibana/kibana.yml:/usr/share/kibana/config/kibana.yml:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    profiles: [kibana]
+
+volumes:
+  zeta4s-state:
+  zeta4s-keyring:
+  airflow-dags:
+  airflow-auth:
+  postgres-data:
+  oracle-data:
+  elasticsearch-data:
+  metastore-data:
+  minio-data:
+  airflow-logs:
+  prefect-data:
+  prometheus-data:
+  alertmanager-data:
+  grafana-data:

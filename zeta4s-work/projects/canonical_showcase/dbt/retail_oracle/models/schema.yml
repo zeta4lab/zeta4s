@@ -1,0 +1,55 @@
+version: 2
+
+models:
+  - name: raw_orders
+    columns:
+      - name: order_id
+        tests:
+          - not_null
+          - unique
+  - name: raw_products
+    columns:
+      - name: product_id
+        tests:
+          - not_null
+          - unique
+  - name: raw_order_items
+    columns:
+      - name: order_id
+        tests:
+          - not_null
+      - name: product_id
+        tests:
+          - not_null
+  - name: order_revenue
+    columns:
+      - name: order_id
+        tests:
+          - not_null
+          - unique
+      - name: customer_id
+        tests:
+          - not_null
+      - name: gross_revenue_cents
+        tests:
+          - not_null
+  - name: daily_revenue
+    columns:
+      - name: order_date
+        tests:
+          - not_null
+      - name: channel
+        tests:
+          - not_null
+      - name: gross_revenue_cents
+        tests:
+          - not_null
+  - name: customer_lifetime_value
+    columns:
+      - name: customer_id
+        tests:
+          - not_null
+          - unique
+      - name: lifetime_revenue_cents
+        tests:
+          - not_null

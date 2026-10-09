@@ -1,0 +1,132 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zeta4s-api
+  namespace: zeta4s
+  labels:
+    app.kubernetes.io/name: zeta4s-api
+    app.kubernetes.io/part-of: zeta4s
+spec:
+  replicas: 1
+  # RWO PVC 를 가진 단일 replica 는 rolling update 에서 volume attach 가 겹쳐 교착한다.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zeta4s-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zeta4s-api
+        app.kubernetes.io/part-of: zeta4s
+    spec:
+      serviceAccountName: zeta4s-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 50000
+        runAsGroup: 0
+        fsGroup: 0
+      containers:
+        - name: zeta4s-api
+          image: ghcr.io/zeta4lab/zeta4s-api:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: 8088
+          env:
+            - name: ZETA4S_API_HOME
+              value: /var/lib/zeta4s
+            - name: ZETA4S_AIRFLOW_DAGS_DIR
+              value: /var/lib/zeta4s/airflow-dags
+            - name: ZETA4S_API_HOST
+              value: 0.0.0.0
+            - name: ZETA4S_API_PORT
+              value: "8088"
+            # 코드 계약이 파일 경로다. Secret 을 file mount 로 받는다.
+            - name: ZETA4S_SECRET_MASTER_KEY_FILE
+              value: /var/lib/zeta4s-keyring/master.json
+            - name: ZETA4S_AIRFLOW_REST_API_PASSWORD_FILE
+              value: /etc/zeta4s/airflow-rest-passwords.json
+            - name: ZETA4S_METASTORE_TYPE
+              value: postgres
+            - name: ZETA4S_AIRFLOW_REST_API_BASE_URL
+              value: http://airflow-apiserver:8080
+            - name: PREFECT_API_URL
+              value: http://prefect-server:4200/api
+            # generated DAG 가 os.environ 으로 읽는 것이 코드 계약이므로 env 로 준다.
+            - name: ZETA4S_RUNTIME_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: zeta4s-runtime-internal-token
+                  key: ZETA4S_RUNTIME_INTERNAL_TOKEN
+          envFrom:
+            # metastore DSN, API token, Airflow REST password 등 외부 서비스 자격증명.
+            # zeta4s 암호 체계의 비밀이 아니라 배포 입력이지만 평문으로 싣지 않는다.
+            - secretRef:
+                name: zeta4s-external-credentials
+          volumeMounts:
+            - name: state
+              mountPath: /var/lib/zeta4s
+            - name: airflow-dags
+              mountPath: /var/lib/zeta4s/airflow-dags
+            - name: master-keyring
+              mountPath: /var/lib/zeta4s-keyring
+              readOnly: true
+            - name: airflow-rest-passwords
+              mountPath: /etc/zeta4s
+              readOnly: true
+            # readOnlyRootFilesystem 을 켜기 위해 쓰기 경로를 volume 으로 분리한다.
+            - name: tmp
+              mountPath: /tmp
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: zeta4s-state
+        - name: airflow-dags
+          persistentVolumeClaim:
+            claimName: zeta4s-airflow-dags
+        - name: master-keyring
+          secret:
+            secretName: zeta4s-secret-master-keyring
+            defaultMode: 0400
+        - name: airflow-rest-passwords
+          secret:
+            secretName: zeta4s-airflow-rest-passwords
+            defaultMode: 0400
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zeta4s-api
+  namespace: zeta4s
+  labels:
+    app.kubernetes.io/name: zeta4s-api
+    app.kubernetes.io/part-of: zeta4s
+spec:
+  # internal execution endpoint 는 cluster 밖으로 내보내지 않는다. Ingress 를 두지 않는다.
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: zeta4s-api
+  ports:
+    - name: http
+      port: 8088
+      targetPort: http

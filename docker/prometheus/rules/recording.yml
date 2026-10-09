@@ -1,0 +1,8 @@
+groups:
+  - name: zeta4s-recording
+    rules:
+      - record: zeta4s:latest_run_failed_rows:sum
+        expr: sum by (project, job) (zeta4s_latest_run_failed_rows)
+
+      - record: zeta4s:latest_run_failed_tasks:sum
+        expr: sum by (project, job) (zeta4s_latest_run_failed_tasks)

@@ -1,0 +1,19 @@
+name: release-tag
+
+# Roadmap 구현 묶음은 main 에 version tag 를 만드는 것으로 마감한다. tag 명과
+# src/zeta4s/__init__.py 의 __version__ 이 어긋나는 것을 막는다. tag 는 v 접두사 없는 semver 다.
+on:
+  push:
+    tags: ['[0-9]*.[0-9]*.[0-9]*']
+
+jobs:
+  verify-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ripgrep 설치
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: tag 와 version 일치 검사
+        run: bash scripts/check_version_consistency.sh "${GITHUB_REF_NAME}"

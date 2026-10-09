@@ -1,0 +1,104 @@
+{
+  "title": "zeta4s ClickHouse Pipeline",
+  "tags": ["zeta4s", "clickhouse", "runtime"],
+  "schemaVersion": 39,
+  "refresh": "15s",
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Registered Projects",
+      "type": "stat",
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+      "targets": [{"expr": "sum(zeta4s_project_registered)", "refId": "A"}]
+    },
+    {
+      "id": 2,
+      "title": "Registered Pipeline Jobs",
+      "type": "stat",
+      "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+      "targets": [{"expr": "sum(zeta4s_job_registered)", "refId": "A"}]
+    },
+    {
+      "id": 3,
+      "title": "ClickHouse Endpoint",
+      "type": "stat",
+      "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0},
+      "targets": [{"expr": "min(zeta4s_runtime_check_status{type=\"clickhouse\"})", "refId": "A"}]
+    },
+    {
+      "id": 4,
+      "title": "ClickHouse Scrape",
+      "type": "stat",
+      "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+      "targets": [{"expr": "up{job=\"clickhouse\"}", "refId": "A"}]
+    },
+    {
+      "id": 5,
+      "title": "Latest ClickHouse Task Output Rows",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "targets": [
+        {
+          "expr": "sum by (project, job, stage) (zeta4s_task_output_rows{stage=~\"load|load.raw|external_lookup|dbt_run|merge|publish_elasticsearch\"})",
+          "legendFormat": "{{project}}/{{job}} {{stage}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Latest ClickHouse Task Failed Rows",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+      "targets": [
+        {
+          "expr": "sum by (project, job, stage) (zeta4s_task_failed_rows{stage=~\"load|load.raw|external_lookup|dbt_run|merge|publish_elasticsearch\"})",
+          "legendFormat": "{{project}}/{{job}} {{stage}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Latest ClickHouse Task Failures",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 13},
+      "targets": [
+        {
+          "expr": "sum by (project, job, task_id, stage, state) (zeta4s_task_result_state{state=~\"failed|upstream_failed\",stage=~\"load|load.raw|external_lookup|dbt_run|merge|publish_elasticsearch\"})",
+          "legendFormat": "{{project}}/{{job}} {{task_id}} {{state}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Latest Run Duration",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 13},
+      "targets": [{"expr": "zeta4s_latest_run_duration_seconds", "legendFormat": "{{project}}/{{job}}", "refId": "A"}]
+    },
+    {
+      "id": 9,
+      "title": "ClickHouse Query Rate",
+      "type": "timeseries",
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 21},
+      "targets": [{"expr": "rate(ClickHouseProfileEvents_Query[1m])", "refId": "A"}]
+    },
+    {
+      "id": 10,
+      "title": "ClickHouse Memory Resident MB",
+      "type": "timeseries",
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 21},
+      "targets": [{"expr": "ClickHouseAsyncMetrics_MemoryResident / 1024 / 1024", "refId": "A"}]
+    },
+    {
+      "id": 11,
+      "title": "ClickHouse Disk Available GB",
+      "type": "timeseries",
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 21},
+      "targets": [{"expr": "ClickHouseAsyncMetrics_DiskAvailable_default / 1024 / 1024 / 1024", "refId": "A"}]
+    }
+  ]
+}

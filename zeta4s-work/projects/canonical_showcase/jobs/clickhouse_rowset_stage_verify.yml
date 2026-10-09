@@ -1,0 +1,265 @@
+job_id: clickhouse_rowset_stage_verify
+schedule: null
+steps:
+  - step_id: prepare_sales_source_namespace
+    type: clickhouse.sql
+    conn: clickhouse_runtime
+    query: sql/clickhouse/clickhouse_rowset/prepare_sales_source_namespace.sql
+
+  - step_id: reset_sales_source
+    type: clickhouse.sql
+    conn: clickhouse_runtime
+    depends_on:
+      - prepare_sales_source_namespace
+    query: sql/clickhouse/clickhouse_rowset/reset_sales_source.sql
+
+  - step_id: seed_sales_source
+    type: clickhouse.sql
+    conn: clickhouse_runtime
+    depends_on:
+      - reset_sales_source
+    query: sql/clickhouse/clickhouse_rowset/seed_sales_source.sql
+
+  - step_id: fetch_sales_rows
+    type: clickhouse.extract
+    conn: clickhouse_runtime
+    depends_on:
+      - seed_sales_source
+    source:
+      kind: query
+      query: sql/clickhouse/clickhouse_rowset/extract_sales_rows.sql
+    output:
+      sales_rows:
+        kind: rowset
+
+  - step_id: stage_sales_rows
+    type: clickhouse.stage
+    conn: clickhouse_runtime
+    depends_on:
+      - fetch_sales_rows
+    map:
+      fetch_sales_rows.sales_rows: mart.stg_sales
+
+  - step_id: reset_sales_metrics
+    type: clickhouse.sql
+    conn: clickhouse_runtime
+    depends_on:
+      - stage_sales_rows
+    query: sql/clickhouse/clickhouse_rowset/reset_sales_metrics.sql
+
+  - step_id: build_sales_metrics
+    type: clickhouse.sql
+    conn: clickhouse_runtime
+    depends_on:
+      - reset_sales_metrics
+    query: sql/clickhouse/clickhouse_rowset/build_sales_metrics.sql
+
+  - step_id: assert_sales_metrics
+    type: sql.check
+    conn: clickhouse_runtime
+    depends_on:
+      - build_sales_metrics
+    query: sql/clickhouse/clickhouse_rowset/assert_sales_metrics.sql
+
+  - step_id: read_sales_metric_scalars
+    type: sql.scalar
+    conn: clickhouse_runtime
+    depends_on:
+      - assert_sales_metrics
+    query: sql/clickhouse/clickhouse_rowset/read_sales_metric_scalars.sql
+    outputs:
+      metric_rows:
+        kind: scalar
+        type: int
+        column: 1
+      sale_count:
+        kind: scalar
+        type: int
+        column: 2
+      ready:
+        kind: scalar
+        type: bool
+        column: 3
+
+  # when.expr 이 참조하는 read_sales_metric_scalars 는 depends_on 에 없다. control
+  # reference 가 upstream 으로 승격되어야만 control edge 와 upstream seeding 이 생긴다.
+  # 승격이 깨지면 upstream result missing 으로 skip 되어 downstream 까지 무너진다.
+  - step_id: extract_sales_upsert_seed
+    type: clickhouse.extract
+    conn: clickhouse_runtime
+    depends_on:
+      - stage_sales_rows
+    when:
+      expr: $steps.read_sales_metric_scalars.outputs.ready == true
+    source:
+      kind: query
+      query: sql/clickhouse/clickhouse_rowset/extract_sales_upsert_seed.sql
+    output:
+      sales_upsert_seed_rows:
+        kind: rowset
+
+  - step_id: write_sales_upsert_seed
+    type: oracle.write
+    conn: oracle_target
+    depends_on:
+      - extract_sales_upsert_seed
+    map:
+      extract_sales_upsert_seed.sales_upsert_seed_rows:
+        table: sales_upsert
+        mode: replace
+        key:
+          - sale_id
+        columns:
+          - sale_id
+          - store_id
+          - product_id
+          - customer_id
+          - quantity
+          - unit_price_cents
+          - amount_cents
+          - amount
+          - discount_rate
+          - is_priority
+          - sold_date
+          - sold_at
+
+  - step_id: mutate_sales_source_for_oracle_upsert
+    type: clickhouse.sql
+    conn: clickhouse_runtime
+    depends_on:
+      - write_sales_upsert_seed
+    query: sql/clickhouse/clickhouse_rowset/mutate_sales_source_for_oracle_upsert.sql
+
+  - step_id: extract_sales_upsert_delta
+    type: clickhouse.extract
+    conn: clickhouse_runtime
+    depends_on:
+      - mutate_sales_source_for_oracle_upsert
+    source:
+      kind: query
+      query: sql/clickhouse/clickhouse_rowset/extract_sales_upsert_delta.sql
+    output:
+      sales_upsert_delta_rows:
+        kind: rowset
+
+  - step_id: write_sales_upsert_delta
+    type: oracle.write
+    conn: oracle_target
+    depends_on:
+      - extract_sales_upsert_delta
+    map:
+      extract_sales_upsert_delta.sales_upsert_delta_rows:
+        table: sales_upsert
+        mode: upsert
+        key:
+          - sale_id
+        columns:
+          - sale_id
+          - store_id
+          - product_id
+          - customer_id
+          - quantity
+          - unit_price_cents
+          - amount_cents
+          - amount
+          - discount_rate
+          - is_priority
+          - sold_date
+          - sold_at
+
+  - step_id: extract_sales_append_rows
+    type: clickhouse.extract
+    conn: clickhouse_runtime
+    depends_on:
+      - write_sales_upsert_delta
+    source:
+      kind: query
+      query: sql/clickhouse/clickhouse_rowset/extract_sales_append_rows.sql
+    output:
+      sales_append_rows:
+        kind: rowset
+
+  - step_id: write_sales_append_rows
+    type: oracle.write
+    conn: oracle_target
+    depends_on:
+      - extract_sales_append_rows
+    map:
+      extract_sales_append_rows.sales_append_rows:
+        table: sales_upsert
+        mode: append
+        key:
+          - sale_id
+        columns:
+          - sale_id
+          - store_id
+          - product_id
+          - customer_id
+          - quantity
+          - unit_price_cents
+          - amount_cents
+          - amount
+          - discount_rate
+          - is_priority
+          - sold_date
+          - sold_at
+
+  - step_id: reset_sales_upsert_metrics
+    type: oracle.sql
+    conn: oracle_target
+    depends_on:
+      - write_sales_append_rows
+    query: sql/oracle/clickhouse_rowset/reset_sales_upsert_metrics.sql
+
+  - step_id: build_sales_upsert_metrics
+    type: oracle.sql
+    conn: oracle_target
+    depends_on:
+      - reset_sales_upsert_metrics
+    query: sql/oracle/clickhouse_rowset/build_sales_upsert_metrics.sql
+
+  - step_id: assert_sales_upsert_metrics
+    type: sql.check
+    conn: oracle_target
+    depends_on:
+      - build_sales_upsert_metrics
+    query: sql/oracle/clickhouse_rowset/assert_sales_upsert_metrics.sql
+
+  # when.success 는 when.expr 과 다른 경로로 판정된다. assert_sales_metrics 는 이 step 의
+  # depends_on 이 아니고 graph 상 멀리 떨어져 있다. 승격이 없으면 seeding 범위 밖이라
+  # when.success not satisfied 로 skip 된다.
+  - step_id: read_sales_upsert_metric_scalars
+    type: sql.scalar
+    conn: oracle_target
+    depends_on:
+      - assert_sales_upsert_metrics
+    when:
+      success: assert_sales_metrics
+    query: sql/oracle/clickhouse_rowset/read_sales_upsert_metric_scalars.sql
+    outputs:
+      row_count:
+        kind: scalar
+        type: int
+        column: 1
+      ready:
+        kind: scalar
+        type: bool
+        column: 2
+
+  # when.expr 이 false 인 경로. metric_rows 는 10000 이므로 이 조건은 항상 false 라
+  # skip 된다. 본류에 아무것도 의존하지 않는 가지라 pipeline 을 건드리지 않는다.
+  # skip 판정이 깨져 이 step 이 실행되면 noop 이라 통과해버리므로, downstream 이
+  # skip 되는지까지 함께 본다.
+  - step_id: probe_when_false_skips
+    type: noop
+    depends_on:
+      - read_sales_metric_scalars
+    when:
+      expr: $steps.read_sales_metric_scalars.outputs.metric_rows < 0
+
+  # 상행이 skip 되면 all_success trigger_rule 로 이 step 도 skip 되어야 한다.
+  # skip 이 downstream 으로 전파되는지 검증한다.
+  - step_id: probe_skip_propagates_downstream
+    type: noop
+    depends_on:
+      - probe_when_false_skips

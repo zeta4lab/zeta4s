@@ -1,0 +1,103 @@
+job_id: retail_mart_dbt
+display_name: Retail Mart dbt
+schedule: null
+steps:
+  - step_id: build_retail_mart
+    display_name: Build Retail Mart
+    type: dbt.run
+    conn: retail_clickhouse
+    models:
+      - raw_orders
+      - raw_products
+      - raw_order_items
+      - order_revenue
+      - daily_revenue
+      - customer_lifetime_value
+
+  - step_id: build_retail_mart_oracle
+    display_name: Build Retail Mart Oracle
+    type: dbt.run
+    conn: retail_oracle
+    models:
+      - raw_orders
+      - raw_products
+      - raw_order_items
+      - order_revenue
+      - daily_revenue
+      - customer_lifetime_value
+
+  - step_id: enrich_daily_revenue_channel
+    display_name: Enrich Daily Revenue Channel
+    type: http.lookup
+    conn: retail_clickhouse
+    depends_on:
+      - build_retail_mart
+    lookup:
+      table: build_retail_mart.daily_revenue
+      column: channel
+    target:
+      table: daily_revenue_enriched
+    api:
+      conn: retail_priority_api
+      path: /classify
+      method: GET
+      request:
+        query_param: description
+      response:
+        json_paths:
+          - $.priority_label
+        columns:
+          - name: priority_label
+            type: String
+
+  - step_id: enrich_daily_revenue_channel_oracle
+    display_name: Enrich Daily Revenue Channel Oracle
+    type: http.lookup
+    conn: retail_oracle
+    depends_on:
+      - build_retail_mart_oracle
+    lookup:
+      table: build_retail_mart_oracle.daily_revenue
+      column: channel
+    target:
+      table: daily_revenue_enriched
+    api:
+      conn: retail_priority_api
+      path: /classify
+      method: GET
+      request:
+        query_param: description
+      response:
+        json_paths:
+          - $.priority_label
+        columns:
+          - name: priority_label
+            type: String
+
+  - step_id: test_retail_mart
+    display_name: Test Retail Mart
+    type: dbt.test
+    conn: retail_clickhouse
+    depends_on:
+      - enrich_daily_revenue_channel
+    models:
+      - raw_orders
+      - raw_products
+      - raw_order_items
+      - order_revenue
+      - daily_revenue
+      - customer_lifetime_value
+
+  - step_id: test_retail_mart_oracle
+    display_name: Test Retail Mart Oracle
+    type: dbt.test
+    conn: retail_oracle
+    depends_on:
+      - enrich_daily_revenue_channel_oracle
+    models:
+      - raw_orders
+      - raw_products
+      - raw_order_items
+      - order_revenue
+      - daily_revenue
+      - customer_lifetime_value

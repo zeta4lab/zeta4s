@@ -1,0 +1,42 @@
+groups:
+  - name: airflow
+    rules:
+      - alert: AirflowSchedulerHeartbeatMissing
+        expr: absent(airflow_scheduler_heartbeat)
+        for: 3m
+        labels:
+          severity: critical
+          service: airflow
+        annotations:
+          summary: Airflow scheduler heartbeat metric is missing
+          description: Prometheus has not received airflow_scheduler_heartbeat.
+
+      - alert: AirflowDagImportErrors
+        expr: airflow_dag_processing_import_errors > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: airflow
+        annotations:
+          summary: Airflow DAG import errors detected
+          description: Airflow DAG import error count is above zero.
+
+      - alert: AirflowTaskFailureSpike
+        expr: increase(airflow_ti_failures[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: airflow
+        annotations:
+          summary: Airflow task failures increased
+          description: Airflow reported task failures in the last five minutes.
+
+      - alert: OracleTargetPoolBacklog
+        expr: airflow_pool_queued_slots_oracle_target > 0
+        for: 10m
+        labels:
+          severity: warning
+          service: airflow
+        annotations:
+          summary: Oracle target pool has queued slots
+          description: Airflow oracle_target pool has queued work for more than ten minutes.

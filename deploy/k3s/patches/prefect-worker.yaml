@@ -1,0 +1,28 @@
+# Prefect worker 에 붙이는 zeta4s 배선.
+#
+#   kubectl -n zeta4s patch deployment prefect-worker \
+#     --patch-file deploy/k3s/patches/prefect-worker.yaml
+#
+# worker 는 zeta4s-api image 를 쓰지만 master keyring 과 외부 자격증명은 받지 않는다.
+# step 실행을 internal API 로 위임하므로 secret 을 직접 풀지 않는다.
+#
+# DAG volume 도 받지 않는다. 그것은 Airflow 전용 공유 지점이다.
+spec:
+  template:
+    metadata:
+      labels:
+        zeta4s.io/runtime: scheduler
+    spec:
+      containers:
+        - name: prefect-worker
+          env:
+            - name: ZETA4S_API_INTERNAL_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: zeta4s-scheduler-config
+                  key: ZETA4S_API_INTERNAL_URL
+            - name: ZETA4S_RUNTIME_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: zeta4s-runtime-internal-token
+                  key: ZETA4S_RUNTIME_INTERNAL_TOKEN

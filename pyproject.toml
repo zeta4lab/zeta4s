@@ -1,0 +1,101 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zeta4s"
+dynamic = ["version"]
+description = "Step graph adapter foundation for Airflow, Oracle, ClickHouse, Elasticsearch, and dbt"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+dependencies = [
+  "pydantic>=2.0,<3.0",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+cli = [
+  "click>=8.1,<9.0",
+]
+api = [
+  "clickhouse-connect>=0.7.0",
+  "cryptography>=41.0",
+  "duckdb>=1.1,<2.0",
+  "fastapi>=0.115,<1.0",
+  "oracledb>=2.5,<5.0",
+  "psycopg[binary]>=3.2,<4.0",
+  "pyarrow>=24.0,<25.0",
+  "pyiceberg[s3fs]==0.11.1",
+  "uvicorn[standard]>=0.30,<1.0",
+]
+all = [
+  "click>=8.1,<9.0",
+  "clickhouse-connect>=0.7.0",
+  "cryptography>=41.0",
+  "duckdb>=1.1,<2.0",
+  "fastapi>=0.115,<1.0",
+  "oracledb>=2.5,<5.0",
+  "psycopg[binary]>=3.2,<4.0",
+  "pyarrow>=24.0,<25.0",
+  "pyiceberg[s3fs]==0.11.1",
+  "uvicorn[standard]>=0.30,<1.0",
+]
+dev = [
+  "click>=8.1,<9.0",
+  "clickhouse-connect>=0.7.0",
+  "cryptography>=41.0",
+  "duckdb>=1.1,<2.0",
+  "fastapi>=0.115,<1.0",
+  "oracledb>=2.5,<5.0",
+  "psycopg[binary]>=3.2,<4.0",
+  "pyarrow>=24.0,<25.0",
+  "pyiceberg[s3fs]==0.11.1",
+  "uvicorn[standard]>=0.30,<1.0",
+]
+
+[dependency-groups]
+dev = [
+  "click>=8.1,<9.0",
+  "clickhouse-connect>=0.7.0",
+  "cryptography>=41.0",
+  "duckdb>=1.1,<2.0",
+  "fastapi>=0.115,<1.0",
+  "oracledb>=2.5,<5.0",
+  "psycopg[binary]>=3.2,<4.0",
+  "pyarrow>=24.0,<25.0",
+  "pyiceberg[s3fs]==0.11.1",
+  "prefect==3.7.8",
+  "pytest>=8.0,<9.0",
+  "ruff>=0.15,<1.0",
+  "uvicorn[standard]>=0.30,<1.0",
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "zeta4s.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["zeta4s*"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.ruff]
+target-version = "py312"
+# 기존 코드 기준에 맞춘다. 88 은 기존 함수 signature 대부분을 여러 줄로 분해한다.
+line-length = 120
+
+[tool.ruff.lint]
+# ruff 기본 룰만 켠다. pyflakes(F) 는 죽은 import 와 undefined name 을 잡고
+# E4/E7/E9 는 치명적 오류만 잡는다. 줄 길이 같은 style 룰은 기존 코드 기준과
+# 충돌하므로 켜지 않는다.
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+# airflow 를 sys.modules 에 stub 한 뒤 zeta4s 를 import 해야 한다. import 순서가
+# 의도적이므로 E402 를 적용하지 않는다.
+"tests/test_clickhouse_write_backend.py" = ["E402"]
+"tests/test_oracle_write_backend.py" = ["E402"]
+"tests/test_rowset_contract.py" = ["E402"]

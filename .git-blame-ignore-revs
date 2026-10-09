@@ -1,0 +1,8 @@
+# 이 파일에 등록한 commit 은 git blame 에서 제외한다. format 처럼 의미를 바꾸지
+# 않는 대규모 변경만 등록한다. GitHub 은 이 파일을 자동으로 적용한다.
+#
+# 로컬 git blame 에 적용하려면 한 번 설정한다:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: ruff format 전체 적용 (145 files, AST 동일)
+6da293545645045a40cf832c18fee1568c020bb0

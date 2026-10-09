@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+.venv-*/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.user.yml
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+projects/**/dbt/z4s_dbt_graph.json
+projects/**/dbt/zeta4s_dbt_graph.json
+profiles.yml
+!dbt/profiles.yml
+!projects/**/dbt/profiles.yml
+!demo/complex_e2e/dbt/profiles.yml
+
+# Airflow
+airflow.db
+airflow-webserver.pid
+logs/
+plugins/__pycache__/
+docker/airflow/dags/__pycache__/
+
+# Flink
+flink/jobs/target/
+flink/jobs/*.jar
+flink-savepoints/
+flink-checkpoints/
+
+# Java / Maven
+*.class
+target/
+.m2/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Agent-local config
+.claude/
+.codex/
+.gemini/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+!.env.closed.example
+*.local.yml
+secrets/
+profiles.local.yml
+assets/*.local.yml
+!assets/*.local.example.yml
+
+# Build artifacts
+dist/
+build/
+*.log
+
+# Claude Code remember plugin (pipeline logs / tmp)
+.remember/
+
+# zeta4s local runtime state and reports
+.zeta4s/
+
+# Agent implementation worktrees
+.worktrees/

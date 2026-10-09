@@ -1,0 +1,8 @@
+job_id: scheduler_noop
+schedule:
+  interval_seconds: 3600
+  timezone: Asia/Seoul
+  paused: true
+steps:
+  - step_id: start
+    type: noop

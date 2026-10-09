@@ -1,0 +1,61 @@
+name: ci
+
+# pull_request 는 head 를 base 에 merge 한 결과를 검사한다. merge 후 main push 에서
+# 다시 도는 것은 같은 내용을 두 번 과금하는 중복이므로 push trigger 를 두지 않는다.
+# 변경은 pull request 로만 main 에 들어오고, 그 외에는 수동으로 실행한다.
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# PR 에 연속으로 push 하면 앞선 실행을 취소한다. 최신 commit 만 검사하면 된다.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # check_static_cli_contract.sh 의 위반 검사는 `if rg ...; then` 형태라
+      # rg 가 없으면 일부 검사가 조용히 통과한다. 설치를 보장한다.
+      - name: ripgrep 설치
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      # --locked 는 uv.lock 이 pyproject 와 어긋나면 실패한다.
+      - name: 의존성 설치
+        run: uv sync --locked
+
+      # lint 는 1초 안에 끝나므로 먼저 돌려 빠르게 실패한다.
+      - name: ruff
+        run: uv run ruff check .
+
+      - name: ruff format
+        run: uv run ruff format --check .
+
+      - name: pytest
+        run: uv run pytest -q
+
+      - name: static CLI contract gate
+        run: bash scripts/check_static_cli_contract.sh
+
+      - name: version consistency gate
+        run: bash scripts/check_version_consistency.sh
+
+      - name: doc contract gate
+        run: bash scripts/check_doc_contract.sh
+
+      # manifest 는 배포 계약이다. cluster 없이 파일 단계에서 경계를 검사한다.
+      - name: k3s manifest contract gate
+        run: bash scripts/check_k3s_manifests.sh
+
+      # gate 만으로는 wheel 이 실제로 설치되는지 알 수 없다. release 를 깨뜨리는
+      # dependency 해석 오류는 설치를 해봐야 드러난다.
+      - name: wheel 설치 smoke
+        run: bash scripts/check_wheel_install.sh

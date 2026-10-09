@@ -1,0 +1,47 @@
+{
+  "title": "zeta4s Runtime Overview",
+  "tags": ["zeta4s", "runtime"],
+  "schemaVersion": 39,
+  "refresh": "15s",
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Latest Run State",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 0},
+      "targets": [{"expr": "zeta4s_latest_run_state", "legendFormat": "{{project}}/{{job}} {{state}}", "refId": "A"}]
+    },
+    {
+      "id": 2,
+      "title": "Failed Tasks",
+      "type": "timeseries",
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 0},
+      "targets": [{"expr": "zeta4s_latest_run_failed_tasks", "legendFormat": "{{project}}/{{job}}", "refId": "A"}]
+    },
+    {
+      "id": 3,
+      "title": "Failed Rows",
+      "type": "timeseries",
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 0},
+      "targets": [{"expr": "zeta4s_latest_run_failed_rows", "legendFormat": "{{project}}/{{job}}", "refId": "A"}]
+    },
+    {
+      "id": 4,
+      "title": "Run Duration Seconds",
+      "type": "timeseries",
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 6},
+      "targets": [{"expr": "zeta4s_latest_run_duration_seconds", "legendFormat": "{{project}}/{{job}}", "refId": "A"}]
+    },
+    {
+      "id": 5,
+      "title": "Input / Output Rows",
+      "type": "timeseries",
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 6},
+      "targets": [
+        {"expr": "zeta4s_latest_run_input_rows", "legendFormat": "input {{project}}/{{job}}", "refId": "A"},
+        {"expr": "zeta4s_latest_run_output_rows", "legendFormat": "output {{project}}/{{job}}", "refId": "B"}
+      ]
+    }
+  ]
+}

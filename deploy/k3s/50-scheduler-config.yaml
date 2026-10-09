@@ -1,0 +1,13 @@
+# scheduler 가 공통으로 받는 비밀 아닌 값.
+#
+# internal token 은 Secret 으로 따로 전달한다. URL 은 비밀이 아니므로 ConfigMap 에 둔다.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zeta4s-scheduler-config
+  namespace: zeta4s
+  labels:
+    app.kubernetes.io/part-of: zeta4s
+data:
+  # generated DAG source 가 os.environ 으로 읽는 것이 코드 계약이다.
+  ZETA4S_API_INTERNAL_URL: http://zeta4s-api.zeta4s.svc:8088

@@ -1,0 +1,28 @@
+# k3s 기본 local-path 는 RWO 다. 단일 노드에서는 같은 노드의 Pod 들이 함께 mount 하므로
+# generated DAG 공유에 RWX provisioner 가 필요 없다. 다중 노드로 넓히면 이 전제가 깨진다.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zeta4s-state
+  namespace: zeta4s
+  labels:
+    app.kubernetes.io/part-of: zeta4s
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+---
+# zeta4s-api 가 만들고 Airflow 가 읽는 유일한 공유 지점이다.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zeta4s-airflow-dags
+  namespace: zeta4s
+  labels:
+    app.kubernetes.io/part-of: zeta4s
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi

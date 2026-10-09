@@ -1,0 +1,37 @@
+{
+  "title": "zeta4s Runtime Contract",
+  "tags": ["zeta4s", "runtime-contract"],
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Runtime Validate Status",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 0},
+      "targets": [{"expr": "zeta4s_runtime_validate_status", "legendFormat": "{{project}}", "refId": "A"}]
+    },
+    {
+      "id": 2,
+      "title": "Endpoint Check Status",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 0},
+      "targets": [{"expr": "zeta4s_runtime_check_status", "legendFormat": "{{project}} {{connection_id}} {{type}}", "refId": "A"}]
+    },
+    {
+      "id": 3,
+      "title": "Artifact Registration Time",
+      "type": "timeseries",
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 6},
+      "targets": [{"expr": "zeta4s_artifact_registered_mtime_seconds", "legendFormat": "{{project}}", "refId": "A"}]
+    },
+    {
+      "id": 4,
+      "title": "Metrics Scrape Errors",
+      "type": "timeseries",
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 6},
+      "targets": [{"expr": "zeta4s_metrics_scrape_error", "legendFormat": "{{section}} {{project}} {{job}}", "refId": "A"}]
+    }
+  ]
+}

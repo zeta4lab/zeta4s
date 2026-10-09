@@ -1,0 +1,32 @@
+groups:
+  - name: metastore
+    rules:
+      - alert: MetastoreDown
+        expr: up{job="metastore"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: metastore
+        annotations:
+          summary: Metastore metrics endpoint is down
+          description: Prometheus cannot scrape metastore /metrics.
+
+      - alert: ClickHouseMemorySaturation
+        expr: ClickHouseAsyncMetrics_MemoryResident > 17179869184
+        for: 15m
+        labels:
+          severity: warning
+          service: metastore
+        annotations:
+          summary: ClickHouse resident memory is high
+          description: ClickHouse resident memory is above 16 GiB for more than fifteen minutes.
+
+      - alert: ClickHouseDiskSpaceLow
+        expr: ClickHouseAsyncMetrics_DiskAvailable_default < 10737418240
+        for: 5m
+        labels:
+          severity: critical
+          service: metastore
+        annotations:
+          summary: ClickHouse disk free space is low
+          description: ClickHouse default disk has less than 10 GiB available.

@@ -1,0 +1,11 @@
+name: retail_clickhouse
+version: "1.0"
+config-version: 2
+profile: retail_clickhouse
+model-paths: ["models"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+models:
+  retail_clickhouse:
+    +materialized: table

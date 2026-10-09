@@ -1,0 +1,1 @@
+drop table if exists oracle_write_verify.sales_upsert_metrics

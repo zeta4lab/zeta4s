@@ -1,0 +1,22 @@
+groups:
+  - name: zeta4s-api
+    rules:
+      - alert: ZETA4SApiDown
+        expr: up{job="zeta4s-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: zeta4s-api
+        annotations:
+          summary: zeta4s-api metrics endpoint is down
+          description: Prometheus cannot scrape zeta4s-api /metrics.
+
+      - alert: ZETA4SMetricsScrapeError
+        expr: zeta4s_metrics_scrape_error > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: zeta4s-api
+        annotations:
+          summary: zeta4s-api metrics collection has partial errors
+          description: zeta4s-api reported a metrics collection error in section {{ $labels.section }}.
