@@ -1,11 +1,14 @@
 # zeta4s
 
+[![ci](https://github.com/zeta4lab/zeta4s/actions/workflows/ci.yml/badge.svg)](https://github.com/zeta4lab/zeta4s/actions/workflows/ci.yml)
+[![release-gate](https://github.com/zeta4lab/zeta4s/actions/workflows/release-gate.yml/badge.svg)](https://github.com/zeta4lab/zeta4s/actions/workflows/release-gate.yml)
+
 zeta4s 는 AI Agent 가 생성한 계약(Contract)을 Step Graph 로 실행하는 범용 Runtime Engine 이다.
 version tag 는 구현 묶음의 표식이며 하위호환 보장을 뜻하지 않는다.
 
 현재 canonical project contract 는 `project.yml`, `jobs/*.yml`, SQL/dbt 파일이다.
 실행 connection 은 workspace `profiles/` 에서 관리한다.
-기본 확장자는 `.yml` 이며, 수동 작성 파일의 `.yaml` 도 허용한다.
+project manifest 는 `project.yml` 이다. job 파일과 profile 은 `.yml` 이 기본이고 `.yaml` 도 허용한다.
 실행은 host 환경의 `z4s` CLI 와 Docker stack 안의 `zeta4s-api`/Airflow/Prefect 로
 검증한다.
 Airflow와 Prefect server는 공식 image를 사용하며 zeta4s가 빌드하는 runtime image는
@@ -23,9 +26,14 @@ ephemeral Parquet를 사용하고 Airflow/Prefect 실행은 Iceberg snapshot과 
 - `zeta4s-cli`: host `z4s` CLI
 - `zeta4s-api`: API server 와 Airflow/backend adapter layer
 
+배포물은 version tag 마다 공개된다. wheel 과 sdist 는
+[GitHub Releases](https://github.com/zeta4lab/zeta4s/releases) 에, `zeta4s-api` image 는
+`ghcr.io/zeta4lab/zeta4s-api:<version>` (linux/amd64, linux/arm64) 에 있다.
+
 ## Quickstart
 
-workspace 를 만든다.
+workspace 를 만든다. `install_cli.sh` 는 기본으로 현재 checkout 을 설치하고, `--package` 로
+Release 의 wheel 을 지정할 수 있다.
 
 ```bash
 bash scripts/install_cli.sh
@@ -46,7 +54,9 @@ bash scripts/install_cli.sh
 .venv/bin/z4s project check my_project --profile dev
 ```
 
-로컬 Docker stack 을 기동한다.
+로컬 Docker stack 을 기동한다. `configure_open_env.sh` 는 `ZETA4S_API_IMAGE` 를 local build tag 로
+채우므로 image 를 먼저 빌드한다. 공개 image 를 쓰려면 `.env` 의 `ZETA4S_API_IMAGE` 를
+`ghcr.io/zeta4lab/zeta4s-api:<version>` 으로 바꾸고 build 단계를 건너뛴다.
 
 ```bash
 bash scripts/configure_open_env.sh --force
@@ -95,11 +105,15 @@ docker compose --env-file .env --profile airflow --profile prefect --profile ass
 release gate 는 별도 Compose project name 과 port 를 사용한다. 검증 대상 project 와 job matrix 는
 workspace showcase 계약으로 지정한다.
 
-## Roadmap
+## 문서
 
-현재 기준 계획 문서는 아래 하나다.
+사용법, 설계, 검증 gate, roadmap 의 진입점은 [docs/README.md](docs/README.md) 다. 완성된 범위와 남은
+목표는 [Step Graph Runtime Roadmap](docs/roadmap/00-step-graph-runtime-roadmap.md) 에 있다.
 
-- [Step Graph Runtime Roadmap](docs/roadmap/00-step-graph-runtime-roadmap.md)
+## 기여
+
+변경은 `main` 으로 향하는 pull request 로 반영한다. pull request 는 `ci` 와 Docker stack
+`release-gate` workflow 를 통과해야 한다. 작업 원칙은 [AGENTS.md](AGENTS.md) 에 있다.
 
 ## License
 
