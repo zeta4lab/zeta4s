@@ -143,7 +143,7 @@ and the `zeta4s-api` image to `ghcr.io/zeta4lab/zeta4s-api:<version>` (linux/amd
 The packages are not on PyPI; install the CLI from both release wheels:
 
 ```bash
-V=1.0.22
+V=$(curl -fsSL https://api.github.com/repos/zeta4lab/zeta4s/releases/latest | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')
 R=https://github.com/zeta4lab/zeta4s/releases/download/$V
 bash scripts/install_cli.sh --package "$R/zeta4s-$V-py3-none-any.whl" --package "$R/zeta4s_cli-$V-py3-none-any.whl"
 ```
