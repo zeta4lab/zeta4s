@@ -21,15 +21,14 @@
   Runtime Engine 이 되는 것이다.
 - 구현 판단은 contract 생성/검증/정규화/배포/실행/관측이 같은 Step Graph 계약으로 이어지는지
   기준으로 한다.
-- 이 프로젝트는 정식 릴리즈 전이다. 구조적 문제가 발견되면 하위호환성을 유지하기보다
-  현재 목표 구조에 맞게 수정한다.
-- version tag 는 개발 내용을 계층으로 구분하는 내부 표식일 뿐이다. tag 가 있다고 해서
-  정식 릴리즈가 아니다. 정식 릴리즈는 외부 공개를 뜻하며 tag 와 무관하게 사용자의
-  별도 지시가 있을 때부터다. 지시가 없었다면 지금은 정식 릴리즈 전이다.
+- 저장소는 Apache-2.0 으로 공개돼 있고 version tag 마다 wheel 과 image 를 publish 한다.
+  하위호환 보장은 사용자가 별도로 지시할 때부터다. 그 전까지 구조적 문제가 발견되면
+  하위호환성을 유지하기보다 현재 목표 구조에 맞게 수정한다.
+- version tag 는 구현 묶음을 구분하는 표식이며 하위호환 경계가 아니다.
 - `docs/` 는 갈래별로 나눈다. `usage/` 는 사용자가 zeta4s 를 쓰는 법, `design/` 은 현재
   코드의 설계, `gate/` 는 검증, `roadmap/` 은 목표와 완성 여부, `plans/` 는 진행 중
   구현 계획이다. 각 디렉토리의 `README.md` 가 규칙을 규정한다.
-- 구현이 끝나면 `usage`, `design`, `gate` 를 현행화하고 `roadmap` 의 상태를 완료로 바꾼다.
+- 구현이 끝나면 `usage`, `design`, `gate` 를 현행화하고 `roadmap` 의 완성된 범위에 반영한다.
   현행화는 version tag 를 붙이는 단계에서 완료한다. tag 시점의 `usage`, `design`, `gate`
   가 그 tag 의 현황이다.
 - 문서는 현재 목표 계약만 설명한다. 필요한 이력은 Git commit 과 PR 기록으로 추적한다.
@@ -82,7 +81,8 @@
 - 커밋 메시지는 `docs:`, `feat:`, `fix:`, `test:` 같은 Conventional Commit 스타일을
   사용하고 설명은 한국어로 작성한다.
 - 변경 사항은 `main` 단일 장기 브랜치 기준으로 관리한다.
-- 기능 변경은 `feature/*`, 수정은 `fix/*` 에서 진행하고 pull request 로 `main` 에 반영한다.
+- 기능 변경은 `feature/*`, 수정은 `fix/*`, 문서는 `docs/*`, 그 밖의 유지보수는 `chore/*` 에서
+  진행하고 pull request 로 `main` 에 반영한다. 의존성 갱신은 Dependabot 이 pull request 로 올린다.
 - 릴리즈는 `main` 에 version tag 를 만드는 것으로 끝낸다. 안정화 브랜치와 back-merge 는 없다.
 - version 의 single source of truth 는 `src/zeta4s/__init__.py` 의 `__version__` 이다.
   pyproject 는 dynamic version 으로 이 값을 읽으므로 static version 을 두지 않는다.
