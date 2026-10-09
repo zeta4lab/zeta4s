@@ -56,7 +56,12 @@ spec:
         - protocol: TCP
           port: 8088
 ---
-# zeta4s-api 는 metastore, scheduler REST, 외부 data backend 로 나간다.
+# zeta4s-api 는 metastore, scheduler REST, Iceberg catalog 와 object storage, 외부 data
+# backend 로 나간다.
+#
+# Iceberg 는 두 목적지를 갖는다. catalog(REST) 로 table metadata 를 다루고, 실제 data file
+# 은 catalog 가 vended credential 과 함께 알려 주는 object storage endpoint 로 직접 읽고
+# 쓴다. catalog 만 열면 bootstrap 은 통과하지만 rowset 쓰기가 실패한다.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -81,7 +86,8 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
-    # cluster 안의 metastore, Airflow REST, Prefect API, data backend
+    # cluster 안의 metastore, Airflow REST, Prefect API, Iceberg catalog, object storage,
+    # data backend
     - to:
         - namespaceSelector: {}
       ports:
@@ -91,19 +97,24 @@ spec:
           port: 8080
         - protocol: TCP
           port: 4200
+        # Iceberg REST catalog (Lakekeeper 기본 포트)
+        - protocol: TCP
+          port: 8181
         - protocol: TCP
           port: 8123
+        # ClickHouse native 와 S3 호환 object storage(MinIO, RustFS 등)가 함께 쓴다
         - protocol: TCP
           port: 9000
         - protocol: TCP
           port: 1521
         - protocol: TCP
           port: 9200
-    # cluster 밖의 data backend.
+    # cluster 밖의 data backend, Iceberg catalog, object storage.
     #
     # namespaceSelector 는 Pod 만 고르므로 외부 IP 는 위 규칙으로 열리지 않는다.
     # 운영 환경의 backend 가 cluster 밖에 있으면 그 CIDR 을 여기 적는다. 아래는
-    # 예시이며 그대로 쓰지 않는다 — 필요한 대역만 남긴다.
+    # 예시이며 그대로 쓰지 않는다 — 필요한 대역만 남긴다. object storage 가 HTTPS
+    # endpoint(예: 클라우드 S3, 443)라면 그 대역과 포트를 별도 규칙으로 더한다.
     - to:
         - ipBlock:
             cidr: 10.0.0.0/8
@@ -113,7 +124,11 @@ spec:
         - protocol: TCP
           port: 5432
         - protocol: TCP
+          port: 8181
+        - protocol: TCP
           port: 8123
+        - protocol: TCP
+          port: 9000
         - protocol: TCP
           port: 1521
         - protocol: TCP

@@ -171,7 +171,31 @@ for source, doc in docs:
         if not token_env and "zeta4s-external-credentials" not in env_from:
             violations.append(f"{source}: ZETA4S_API_TOKEN is not wired from a secret")
 
-# 6. internal execution endpoint 를 cluster 밖으로 내보내지 않는다.
+        # 6. scheduler 실행 rowset 과 bootstrap 은 Iceberg catalog 를 요구한다. 접속 정보가
+        #    없으면 배포는 뜨지만 bootstrap 과 첫 rowset step 에서야 실패한다.
+        api_env = {
+            env.get("name"): env for container in spec.get("containers", []) for env in container.get("env", [])
+        }
+        for required in ("ZETA4S_ICEBERG_CATALOG_URI", "ZETA4S_ICEBERG_WAREHOUSE"):
+            env = api_env.get(required)
+            if env is None:
+                violations.append(f"{source}: zeta4s-api does not receive {required}")
+            elif not str(env.get("value") or "").strip() and not env.get("valueFrom"):
+                violations.append(f"{source}: zeta4s-api sets {required} to an empty value")
+
+        # catalog token 은 자격증명이다. env literal 로 싣지 않는다.
+        catalog_token = api_env.get("ZETA4S_ICEBERG_CATALOG_TOKEN")
+        if catalog_token is not None:
+            if catalog_token.get("value") is not None:
+                violations.append(
+                    f"{source}: ZETA4S_ICEBERG_CATALOG_TOKEN must come from a secret, not a literal value"
+                )
+            elif not (catalog_token.get("valueFrom") or {}).get("secretKeyRef"):
+                violations.append(f"{source}: ZETA4S_ICEBERG_CATALOG_TOKEN is not wired from a secret")
+        elif "zeta4s-external-credentials" not in env_from:
+            violations.append(f"{source}: ZETA4S_ICEBERG_CATALOG_TOKEN is not wired from a secret")
+
+# 7. internal execution endpoint 를 cluster 밖으로 내보내지 않는다.
 for source, doc in docs:
     # k3s 는 Traefik 을 기본 탑재하므로 IngressRoute 가 그 환경의 관용적 노출 수단이다.
     if doc.get("kind") in ("Ingress", "IngressRoute", "HTTPRoute", "TCPRoute"):
@@ -179,7 +203,7 @@ for source, doc in docs:
     if kind(doc, "Service") and doc["spec"].get("type") not in (None, "ClusterIP"):
         violations.append(f"{source}: service {doc['metadata']['name']} is not ClusterIP")
 
-# 7. Role 은 keyring Secret 하나의 get 만 갖는다. list 는 다른 Secret 이름을 드러낸다.
+# 8. Role 은 keyring Secret 하나의 get 만 갖는다. list 는 다른 Secret 이름을 드러낸다.
 for source, doc in docs:
     if doc.get("kind") not in ("Role", "ClusterRole"):
         continue
@@ -192,7 +216,7 @@ for source, doc in docs:
         if not rule.get("resourceNames"):
             violations.append(f"{source}: secret role does not pin resourceNames")
 
-# 8. zeta4s 소유 Pod 에 default deny 가 걸려야 한다.
+# 9. zeta4s 소유 Pod 에 default deny 가 걸려야 한다.
 ZETA4S_OWNER_LABEL = ("app.kubernetes.io/part-of", "zeta4s")
 policies = [(source, doc) for source, doc in docs if kind(doc, "NetworkPolicy")]
 
@@ -217,7 +241,7 @@ if not any(
 ):
     violations.append("no default deny NetworkPolicy covering zeta4s-owned pods")
 
-# 9. zeta4s 는 자기가 배포하지 않는 Pod 를 selector 로 고르지 않는다.
+# 10. zeta4s 는 자기가 배포하지 않는 Pod 를 selector 로 고르지 않는다.
 #
 # NetworkPolicy 는 Pod 를 고르는 순간 그 방향을 화이트리스트로 바꾼다. scheduler 를
 # 고르면 zeta4s 가 열어 준 대상 밖이 전부 닫히고, Airflow 는 자기 metastore 에,
@@ -239,4 +263,4 @@ if [ "$fail" -ne 0 ]; then
   exit 1
 fi
 
-echo "k3s manifest contract holds: keyring is api-only, api is non-root read-only, no ingress, policies cover only zeta4s pods"
+echo "k3s manifest contract holds: keyring is api-only, api is non-root read-only, no ingress, policies cover only zeta4s pods, api receives iceberg catalog wiring"
