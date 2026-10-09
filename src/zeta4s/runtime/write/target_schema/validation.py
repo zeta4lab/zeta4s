@@ -39,7 +39,7 @@ def validate_target_schema_contract(
                     target_contract=target_contract,
                     column=column,
                     reason=f"target table {target_contract.full_name} has no column named {column}.",
-                    suggestion="write.columns/key 를 target table column 과 일치시키거나 target schema 를 먼저 준비하세요.",
+                    suggestion="Align write.columns/key with the target table columns, or prepare the target schema first.",
                     job=job,
                     write=write,
                     model=model,
@@ -57,7 +57,7 @@ def validate_target_schema_contract(
                     target_column=target_column,
                     column=column,
                     reason=f"source projection has no column named {column}.",
-                    suggestion="write.columns/key 를 dbt model column 과 일치시키거나 source projection alias 를 추가하세요.",
+                    suggestion="Align write.columns/key with the dbt model columns, or add an alias in the source projection.",
                     job=job,
                     write=write,
                     model=model,
@@ -126,7 +126,7 @@ def _validate_column_type(
                 code="Z4E_WRITE_MODEL_NORMALIZE_REQUIRED",
                 message="Source projection can produce NULL for a NOT NULL target column.",
                 reason=f"target column {column} is NOT NULL.",
-                suggestion=f"{projection_label} 에서 WHERE, coalesce(), 또는 명시 default 처리로 NULL 가능성을 제거하세요.",
+                suggestion=f"Remove possible NULLs in {projection_label} with WHERE, coalesce(), or an explicit default.",
                 target_column=target_column,
                 **common,
             )
@@ -138,7 +138,7 @@ def _validate_column_type(
                 code="Z4E_WRITE_MODEL_CAST_REQUIRED",
                 message="Source projection uses a complex type for scalar target column.",
                 reason=f"ClickHouse type {clickhouse_type} cannot be bound to target column {column}.",
-                suggestion=f"{projection_label} 에서 target column 에 맞는 scalar 값으로 변환하세요.",
+                suggestion=f"Convert the value in {projection_label} to a scalar that fits the target column.",
                 target_column=target_column,
                 **common,
             )
@@ -156,7 +156,7 @@ def _validate_column_type(
             code="Z4E_WRITE_TARGET_TYPE_UNSUPPORTED",
             message="Target column type is not supported by write validation.",
             reason=f"target column {column} type {target_column.target_type} has no validator.",
-            suggestion="지원 target type 으로 projection 하거나 target adapter validator 를 추가하세요.",
+            suggestion="Project to a supported target type, or add a target adapter validator.",
             target_column=target_column,
             **common,
         )
@@ -181,7 +181,7 @@ def _validate_number_target(
                 code="Z4E_WRITE_MODEL_PRECISION_UNSAFE",
                 message="Source Decimal precision exceeds target precision.",
                 reason=f"source precision {precision} exceeds target precision {target_column.precision}.",
-                suggestion=f"{projection_label} 에서 target precision 이하 Decimal 로 cast 하세요.",
+                suggestion=f"Cast to a Decimal within the target precision in {projection_label}.",
                 **common,
             )
     if family in {"Date", "Date32", "DateTime", "DateTime64"}:
@@ -203,7 +203,7 @@ def _validate_string_target(
                 code="Z4E_WRITE_MODEL_LENGTH_UNSAFE",
                 message="Source FixedString length exceeds target length.",
                 reason=f"source FixedString({fixed_length}) exceeds target length {target_column.length}.",
-                suggestion=f"{projection_label} 에서 target length 이하로 명시 변환하세요.",
+                suggestion=f"Explicitly convert to a value within the target length in {projection_label}.",
                 **common,
             )
     return None
@@ -227,7 +227,7 @@ def _validate_datetime_target(
                 code="Z4E_WRITE_MODEL_PRECISION_UNSAFE",
                 message="Source DateTime64 precision exceeds target timestamp precision.",
                 reason=f"source precision {precision} exceeds target precision {target_column.datetime_precision}.",
-                suggestion=f"{projection_label} 에서 target precision 에 맞게 datetime precision 을 명시하세요.",
+                suggestion=f"Set an explicit datetime precision matching the target precision in {projection_label}.",
                 **common,
             )
     return None
@@ -252,7 +252,7 @@ def _validate_key_contract(
         target_contract=target_contract,
         column=", ".join(key),
         reason=f"write.key={key} has no matching primary/unique constraint on {target_contract.full_name}.",
-        suggestion="write.key 를 target PK/unique key 와 일치시키거나 target constraint 를 먼저 준비하세요.",
+        suggestion="Align write.key with the target primary/unique key, or create the target constraint first.",
         job=job,
         write=write,
         model=model,
@@ -285,7 +285,7 @@ def _cast_issue(
         code="Z4E_WRITE_MODEL_CAST_REQUIRED",
         message="Source projection type does not match target column family.",
         reason=f"target column {target_column.name} requires {target_family} compatible value.",
-        suggestion=f"{projection_label} 에서 target {target_column.target_type} 에 맞는 명시 cast/normalization 을 추가하세요.",
+        suggestion=f"Add an explicit cast/normalization to target {target_column.target_type} in {projection_label}.",
         **common,
     )
 

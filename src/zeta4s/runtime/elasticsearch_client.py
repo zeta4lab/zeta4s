@@ -22,7 +22,7 @@ def elasticsearch_connection(conn_id: str, *, connections: dict[str, Any] | None
     conn = resolve_runtime_connection(conn_id, connections=connections)
     host = conn.host
     if not host:
-        raise ValueError(f"Elasticsearch connection host 가 비어 있다: conn_id={conn_id!r}")
+        raise ValueError(f"Elasticsearch connection host is empty: conn_id={conn_id!r}")
 
     if host.startswith(("http://", "https://")):
         base_url = host

@@ -14,27 +14,27 @@ ES_INDEX_TEMPLATE_RE = re.compile(r"\{(data_interval_end|logical_date|run_date):
 
 def validate_elasticsearch_index(value: str, label: str) -> str:
     if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"{label} 은 비어 있을 수 없다.")
+        raise ValueError(f"{label} must not be empty.")
     value = value.strip()
     if (
         value in {".", ".."}
         or not ES_INDEX_RE.fullmatch(value)
         or any(char in ES_INDEX_FORBIDDEN_CHARS for char in value)
     ):
-        raise ValueError(f"{label} 은 lowercase Elasticsearch index name 이어야 한다.")
+        raise ValueError(f"{label} must be a lowercase Elasticsearch index name.")
     return value
 
 
 def validate_elasticsearch_index_template(value: str, label: str) -> str:
     if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"{label} 은 비어 있을 수 없다.")
+        raise ValueError(f"{label} must not be empty.")
     value = value.strip()
     stripped = ES_INDEX_TEMPLATE_RE.sub("x", value)
     if "{" in stripped or "}" in stripped:
         raise ValueError(
-            f"{label} 은 "
-            "{data_interval_end:<strftime>}, {logical_date:<strftime>} 또는 "
-            "{run_date:<strftime>} 만 허용한다."
+            f"{label} only allows "
+            "{data_interval_end:<strftime>}, {logical_date:<strftime>} or "
+            "{run_date:<strftime>} placeholders."
         )
     sample = ES_INDEX_TEMPLATE_RE.sub(
         lambda match: datetime(2026, 1, 1).strftime(match.group(2)),
@@ -103,7 +103,7 @@ def resolve_elasticsearch_index(
     index_timezone_label: str,
 ) -> str:
     if bool(index) == bool(index_template):
-        raise ValueError(f"{index_label} 또는 {index_template_label} 중 하나만 필요하다.")
+        raise ValueError(f"exactly one of {index_label} or {index_template_label} is required.")
     if index_template:
         return render_elasticsearch_index_template(
             index_template,
@@ -113,6 +113,6 @@ def resolve_elasticsearch_index(
             timezone_label=index_timezone_label,
         )
     if index_timezone:
-        raise ValueError(f"{index_timezone_label} 은 {index_template_label} 과 함께 사용해야 한다.")
+        raise ValueError(f"{index_timezone_label} must be used together with {index_template_label}.")
     assert index is not None
     return validate_elasticsearch_index(index, index_label)

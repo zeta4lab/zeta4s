@@ -85,7 +85,7 @@ def validate_clickhouse_type_for_oracle(
             code="Z4E_WRITE_TYPE_COMPLEX_UNSUPPORTED",
             message="Oracle write does not accept ClickHouse complex type.",
             reason=f"{family} type cannot be bound as an Oracle scalar column.",
-            suggestion="dbt model 에서 Oracle 에 저장 가능한 scalar String/Number/DateTime 컬럼으로 변환하세요.",
+            suggestion="Convert it in the dbt model to a scalar String/Number/DateTime column that Oracle can store.",
             **common,
         )
     return None
@@ -111,7 +111,7 @@ def validate_arrow_schema_for_oracle(
                     code="Z4E_WRITE_ARROW_COLUMN_MISSING",
                     message="Write Arrow schema is missing a configured column.",
                     reason=f"pyarrow.Schema has no column named {column}.",
-                    suggestion="write.columns 와 dbt model column 이름을 일치시키세요.",
+                    suggestion="Align write.columns with the dbt model column names.",
                     step=step,
                     job=job,
                     write=write,
@@ -169,7 +169,7 @@ def validate_arrow_type_for_oracle(
                 code="Z4E_WRITE_ARROW_UINT64_UNSAFE",
                 message="Oracle write does not accept Arrow uint64 without explicit cast.",
                 reason="uint64 can exceed Oracle NUMBER precision used by the writer.",
-                suggestion="dbt model 에서 Int64 범위가 보장되면 toInt64OrNull() 로 cast 하거나 String 으로 명시 변환하세요.",
+                suggestion="In the dbt model, cast with toInt64OrNull() if the Int64 range is guaranteed, or explicitly convert to String.",
                 **common,
             )
         return None
@@ -180,15 +180,15 @@ def validate_arrow_type_for_oracle(
         return _issue(
             code="Z4E_WRITE_ARROW_DECIMAL_PRECISION",
             message="Oracle write Arrow decimal precision is too large.",
-            reason=f"Oracle write 지원 범위는 Decimal precision <= {ORACLE_DECIMAL_MAX_PRECISION} 입니다.",
-            suggestion="dbt model 에서 precision 38 이하 Decimal 로 cast 하거나 String 으로 명시 변환하세요.",
+            reason=f"Oracle write supports Decimal precision <= {ORACLE_DECIMAL_MAX_PRECISION}.",
+            suggestion="In the dbt model, cast to a Decimal with precision <= 38 or explicitly convert to String.",
             **common,
         )
     return _issue(
         code="Z4E_WRITE_ARROW_TYPE_UNSUPPORTED",
         message="Oracle write Arrow type is not supported.",
         reason=f"Arrow type {arrow_type} has no Oracle write contract.",
-        suggestion="dbt model 에서 Oracle 에 저장 가능한 scalar String/Number/DateTime 컬럼으로 변환하세요.",
+        suggestion="Convert it in the dbt model to a scalar String/Number/DateTime column that Oracle can store.",
         **common,
     )
 

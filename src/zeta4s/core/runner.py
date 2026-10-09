@@ -602,7 +602,7 @@ def _topological_steps(plan: ExecutionPlan) -> tuple[ExecutionStep, ...]:
             return
         if step_id in visiting:
             cycle = stack[stack.index(step_id) :] + [step_id]
-            raise ValueError("execution plan cycle 이 있다: " + " -> ".join(cycle))
+            raise ValueError("execution plan has a cycle: " + " -> ".join(cycle))
         visiting.add(step_id)
         stack.append(step_id)
         for upstream_id in upstreams.get(step_id, ()):
