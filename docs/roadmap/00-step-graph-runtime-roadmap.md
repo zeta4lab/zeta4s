@@ -28,7 +28,8 @@ Runtime Engine 이 되는 것이다.
 - **Scheduler backend** — Airflow 와 Prefect 를 같은 외부 backend 계약으로 연결한다. profile 이
   backend 를 고르고, deploy 가 project 별 backend 를 metastore 에 기록하며, undeploy 는 기록된
   backend 를 따른다. Airflow 는 공식 image 를 쓰고 `zeta4s-api` 가 DAG source 를 projection 한다.
-  credential 해석과 step 실행은 `zeta4s-api` 안에서 일어난다.
+  credential 해석과 step 실행은 `zeta4s-api` 안에서 일어난다. schedule 은 job `schedule.timezone`,
+  없으면 project `timezone` 기준으로 두 backend 가 같은 의미로 해석한다.
 - **Pool binding** — Step Graph 에서 effective pool 을 backend 중립으로 산출하고 각 scheduler
   resource 로 동기화한다. 자동 pool 이 기본이고 사용자 지정 pool 은 예외적 override 다. limit 초과
   contention 시간은 gate 가 직접 측정하지 않는다.
