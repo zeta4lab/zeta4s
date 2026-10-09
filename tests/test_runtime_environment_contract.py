@@ -302,8 +302,8 @@ class RuntimeEnvironmentContractTest(unittest.TestCase):
         expected_images = {
             "lakekeeper": "${LAKEKEEPER_IMAGE:-quay.io/lakekeeper/catalog:v0.13.1}",
             "lakekeeper-migrate": "${LAKEKEEPER_IMAGE:-quay.io/lakekeeper/catalog:v0.13.1}",
-            "minio": "${MINIO_IMAGE:-quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z}",
-            "minio-init": "${MINIO_CLIENT_IMAGE:-quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z}",
+            "rustfs": "${RUSTFS_IMAGE:-rustfs/rustfs:1.0.0}",
+            "rustfs-init": "${AWS_CLI_IMAGE:-amazon/aws-cli:2.36.47}",
         }
         for service_name, image in expected_images.items():
             service = services[service_name]
@@ -312,17 +312,17 @@ class RuntimeEnvironmentContractTest(unittest.TestCase):
             self.assertNotIn(":latest", image)
 
         self.assertIn("healthcheck", services["lakekeeper"])
-        self.assertIn("healthcheck", services["minio"])
-        self.assertIn("minio-data:/data", services["minio"]["volumes"])
-        self.assertIn("minio-data", compose["volumes"])
+        self.assertIn("healthcheck", services["rustfs"])
+        self.assertIn("rustfs-data:/data", services["rustfs"]["volumes"])
+        self.assertIn("rustfs-data", compose["volumes"])
         self.assertEqual(services["lakekeeper-init"]["profiles"], ["checkpoint"])
         self.assertEqual(services["lakekeeper-init"]["restart"], "no")
-        self.assertIn("MINIO_ROOT_USER", services["lakekeeper-init"]["environment"])
-        self.assertIn("MINIO_ROOT_PASSWORD", services["lakekeeper-init"]["environment"])
+        self.assertIn("RUSTFS_ACCESS_KEY", services["lakekeeper-init"]["environment"])
+        self.assertIn("RUSTFS_SECRET_KEY", services["lakekeeper-init"]["environment"])
         lakekeeper_init = "\n".join(services["lakekeeper-init"]["command"])
-        self.assertIn('"endpoint":"http://minio:19002"', lakekeeper_init)
-        self.assertIn('"sts-endpoint":"http://minio:19002"', lakekeeper_init)
-        self.assertNotIn("minio.localhost", lakekeeper_init)
+        self.assertIn('"endpoint":"http://rustfs:9000"', lakekeeper_init)
+        self.assertIn('"sts-endpoint":"http://rustfs:9000"', lakekeeper_init)
+        self.assertNotIn("rustfs.localhost", lakekeeper_init)
 
         api_env = compose["services"]["zeta4s-api"]["environment"]
         self.assertEqual(
@@ -335,7 +335,7 @@ class RuntimeEnvironmentContractTest(unittest.TestCase):
             "${ZETA4S_ROWSET_CHECKPOINT_TARGET_BYTES:-134217728}",
         )
         self.assertNotIn("asset", services["lakekeeper"]["profiles"])
-        self.assertNotIn("asset", services["minio"]["profiles"])
+        self.assertNotIn("asset", services["rustfs"]["profiles"])
 
     def test_release_reliability_scripts_use_profile_api_deploy_contract(self) -> None:
         reliability = (ROOT / "scripts/check_runtime_reliability.sh").read_text(encoding="utf-8")
