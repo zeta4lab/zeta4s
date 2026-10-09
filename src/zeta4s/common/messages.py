@@ -35,10 +35,6 @@ MESSAGES: dict[str, dict[str, str]] = {
         "ko": "project 필수 항목이 없습니다: {entries}",
         "en": "missing project entries: {entries}",
     },
-    "project.assets_reference.missing": {
-        "ko": "assets config에 runtime reference가 없습니다: {missing}",
-        "en": "assets config is missing runtime references: {missing}",
-    },
     "extract.sql.empty": {
         "ko": "extract SQL 파일이 비어 있습니다.",
         "en": "extract SQL file is empty.",

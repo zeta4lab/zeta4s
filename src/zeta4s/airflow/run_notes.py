@@ -1,7 +1,6 @@
 """zeta4s task result 를 Airflow note 로 반영한다. zeta4s-api process 에서 돈다.
 
-Airflow 에는 REST 로만 붙는다. 이 module 은 airflow 를 import 하지 않는다. worker 측
-callback 은 `task_result_notes.py` 에 있다 — 실행 위치가 다르므로 module 을 가른다.
+Airflow 에는 REST 로만 붙는다. 이 module 은 airflow 를 import 하지 않는다.
 """
 
 from __future__ import annotations

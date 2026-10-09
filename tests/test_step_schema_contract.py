@@ -774,7 +774,6 @@ class StepSchemaContractTest(unittest.TestCase):
             root = Path(tmp) / "duplicate_steps"
             jobs = root / "jobs"
             jobs.mkdir(parents=True)
-            (root / "assets").mkdir()
             (root / "dbt").mkdir()
             (root / "project.yml").write_text(
                 yaml.safe_dump(
@@ -783,7 +782,6 @@ class StepSchemaContractTest(unittest.TestCase):
                         "timezone": "Asia/Seoul",
                         "paths": {
                             "jobs": "jobs",
-                            "assets": "assets",
                             "dbt": "dbt",
                         },
                     },

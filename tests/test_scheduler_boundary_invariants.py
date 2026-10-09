@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+import sys
 import unittest
 
 
@@ -60,9 +61,6 @@ class AirflowHeadlessInvariantTest(unittest.TestCase):
     **파일 목록으로는 판단할 수 없다.** `api/app.py` 가 airflow 를 직접 import 하지 않아도
     다른 module 을 거쳐 airflow 에 닿을 수 있고, 그런 경로는 어떤 파일 단위 검사에도 걸리지
     않는다. 그래서 import 그래프로 본다.
-
-    worker-side module은 distribution에 남아 있어도 공식 Airflow image에서 import되지
-    않는다. zeta4s-api process도 airflow package를 import하지 않는다.
     """
 
     def test_api_cannot_reach_airflow_by_any_import_path(self) -> None:
@@ -73,31 +71,31 @@ class AirflowHeadlessInvariantTest(unittest.TestCase):
         )
         self.assertEqual(offenders, [])
 
-    def test_worker_side_modules_are_the_only_airflow_importers(self) -> None:
-        """distribution 안에서 airflow 를 import하는 legacy adapter 경계를 못박는다.
+    def test_no_distribution_module_imports_airflow(self) -> None:
+        """Airflow 를 import 하는 코드는 generated DAG source 뿐이고 distribution 에는 없다.
 
-        여기 없는 module 이 airflow 를 import 하면 실행 위치를 다시 따져야 한다는 뜻이다.
+        Airflow worker 는 zeta4s 를 import 하지 않고 step 실행을 zeta4s-api internal endpoint 에
+        위임한다. distribution 안 module 이 airflow 를 import 하면 그 위임 경계가 깨진 것이다.
         """
         importers = sorted(
             str(path.relative_to(ROOT))
             for path in (ROOT / "src" / "zeta4s").rglob("*.py")
             if "airflow" in _import_roots(path)
         )
-        self.assertEqual(
-            importers,
-            [
-                # task 실행 — operators.py 가 부른다
-                "src/zeta4s/airflow/connections.py",
-                # dagbag parse
-                "src/zeta4s/airflow/dag_generator.py",
-                "src/zeta4s/airflow/dynamic_loader.py",
-                # task 실행
-                "src/zeta4s/airflow/operators.py",
-                # legacy connection projection plugin; official image에서는 import하지 않는다
-                # generic task 바인딩 — PythonOperator 를 만든다
-                "src/zeta4s/airflow/step_binding.py",
-            ],
-        )
+        self.assertEqual(importers, [])
+
+    def test_generated_dag_source_imports_only_airflow_and_stdlib(self) -> None:
+        from zeta4s.airflow.dag_source import _SOURCE_TEMPLATE
+
+        tree = ast.parse(_SOURCE_TEMPLATE.replace("__ZETA4S_DAG_SPEC__", repr("{}")))
+        roots = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                roots.update(alias.name.split(".", 1)[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom):
+                roots.add((node.module or "").split(".", 1)[0])
+        third_party = sorted(root for root in roots if root not in sys.stdlib_module_names and root != "__future__")
+        self.assertEqual(third_party, ["airflow"])
 
     def test_no_module_opens_the_airflow_metastore(self) -> None:
         """`create_session` 과 `airflow.settings.Session` 두 경로 모두다.
@@ -170,7 +168,7 @@ def _reachable_modules(entry: str) -> set[str]:
     """entry 에서 import 로 도달하는 zeta4s module 의 전이 폐포다.
 
     **부모 package 를 함께 넣는다.** `zeta4s.airflow.dags` 를 import 하면 python 이
-    `zeta4s/airflow/__init__.py` 를 먼저 실행하므로, 거기서 worker 측 module 을 끌어오면
+    `zeta4s/airflow/__init__.py` 를 먼저 실행하므로, 거기서 airflow 를 import 하는 module 을 끌어오면
     API process 도 airflow 를 import 하게 된다. 부모를 빼면 그 경로를 놓친다.
     """
     seen: set[str] = set()

@@ -263,18 +263,6 @@ def _context(job_id: str, reporter=None):
     )
 
 
-def _project_config() -> dict:
-    root = Path("/tmp/core-runner-test")
-    return {
-        "project_id": "core_runner_test",
-        "root": str(root),
-        "jobs_dir": str(root / "jobs"),
-        "assets_dir": str(root / "assets"),
-        "dbt_dir": str(root / "dbt"),
-        "timezone": "Asia/Seoul",
-    }
-
-
 class CoreRunnerTest(unittest.TestCase):
     def test_core_import_does_not_require_airflow(self):
         airflow_modules = {
@@ -1492,7 +1480,6 @@ class CoreRunnerTest(unittest.TestCase):
             project_id="core_runner_test",
             root=Path("/tmp/core_runner_test"),
             jobs_dir=Path("/tmp/core_runner_test/jobs"),
-            assets_dir=Path("/tmp/core_runner_test/assets"),
             dbt_dir=Path("/tmp/core_runner_test/dbt"),
             timezone="UTC",
         )

@@ -40,38 +40,31 @@ if rg -n 'result_context\("external_lookup"|stage="external_lookup"|external_loo
   exit 1
 fi
 
-if ! rg -n 'DAG_MAX_ACTIVE_RUNS = 1' src/zeta4s/airflow/dag_generator.py >/dev/null; then
+dag_source=src/zeta4s/airflow/dag_source.py
+if ! rg -n '^    max_active_runs=1,$' "$dag_source" >/dev/null; then
   echo "static CLI contract violation: generated DAG max_active_runs must be fixed to 1" >&2
   exit 1
 fi
 
-if ! rg -n '_assert_dag_runtime_invariants' src/zeta4s/airflow/dag_generator.py >/dev/null; then
-  echo "static CLI contract violation: generated DAG runtime invariant check is required" >&2
+if rg -n 'Asset|Dataset|outlets\s*=' "$dag_source" >/dev/null; then
+  echo "static CLI contract violation: generated DAG must not use Airflow Asset/Dataset/outlets APIs" >&2
   exit 1
 fi
 
-if rg -n 'from airflow.*(Asset|Dataset)|outlets\s*=' src/zeta4s/airflow/dag_generator.py >/dev/null; then
-  echo "static CLI contract violation: DAG generator must not use Airflow Asset/Dataset/outlets APIs" >&2
+if awk '/^_SOURCE_TEMPLATE = /,0' "$dag_source" | rg -q '(from|import) zeta4s'; then
+  echo "static CLI contract violation: generated DAG source must import only airflow and the standard library" >&2
   exit 1
 fi
 
-if rg -n '_STEP_GRAPH_ADAPTERS|def _bind_|def _step_graph_.*_task|from zeta4s\.airflow\.operators import|PythonOperator' src/zeta4s/airflow/dag_generator.py >/dev/null; then
-  echo "static CLI contract violation: task 생성은 src/zeta4s/airflow/step_binding.py 에 있어야 한다" >&2
+if ! awk '/^_SOURCE_TEMPLATE = /,0' "$dag_source" | rg -q '/internal/v1/runtime/steps/execute'; then
+  echo "static CLI contract violation: generated DAG tasks must delegate step execution to the zeta4s-api internal endpoint" >&2
   exit 1
 fi
 
-if rg -n 'builtin_step_adapters|step_adapters' src/zeta4s/airflow/dag_generator.py >/dev/null; then
-  echo "static CLI contract violation: DAG generator must bind every step generically, not via a per-type adapter registry" >&2
-  exit 1
-fi
-
-if ! rg -n 'single_task_binding\(core_step_operator' src/zeta4s/airflow/dag_generator.py >/dev/null; then
-  echo "static CLI contract violation: DAG generator must bind steps through generic core_step_operator" >&2
-  exit 1
-fi
-
-if [ ! -f src/zeta4s/airflow/step_binding.py ]; then
-  echo "static CLI contract violation: generic step binding module is required" >&2
+airflow_importers="$(rg -l --type py '^\s*(from|import) airflow\b' src/zeta4s | rg -v "^$dag_source\$" || true)"
+if [ -n "$airflow_importers" ]; then
+  echo "static CLI contract violation: distribution modules must not import airflow; Airflow runs only generated DAG source" >&2
+  echo "$airflow_importers" >&2
   exit 1
 fi
 
