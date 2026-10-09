@@ -402,7 +402,7 @@ class CoreRunnerTest(unittest.TestCase):
             ),
         )
 
-        with self.assertRaisesRegex(ValueError, "execution plan cycle"):
+        with self.assertRaisesRegex(ValueError, "execution plan has a cycle"):
             LocalRunner({"noop": _Executor()}).run(invalid_plan, _context("cycle_job"))
 
     def test_failure_skips_downstream_all_success_step(self):

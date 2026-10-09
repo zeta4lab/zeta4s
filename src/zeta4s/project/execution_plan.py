@@ -517,7 +517,7 @@ def _validate_acyclic_edges(plan: ExecutionPlan) -> None:
             return
         if step_id in visiting:
             cycle = stack[stack.index(step_id) :] + [step_id]
-            raise ValueError("execution plan cycle 이 있다: " + " -> ".join(cycle))
+            raise ValueError("execution plan has a cycle: " + " -> ".join(cycle))
         visiting.add(step_id)
         stack.append(step_id)
         for upstream in sorted(graph.get(step_id, set())):

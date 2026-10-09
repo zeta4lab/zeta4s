@@ -41,8 +41,8 @@ def validate_raw_asset_identifier(value: str, label: str) -> str:
         raise ValueError(
             f"{label} must be a raw asset identifier "
             f"(letters, digits, _; starts with a letter): {value!r}. "
-            "Oracle 특수 객체명(G$, V$, GV$ 등)은 extract.queries[] SQL 파일에 두고 "
-            "extract.queries[].name 에 안전한 asset 이름을 사용한다."
+            "Put Oracle special object names (G$, V$, GV$, ...) in an extract.queries[] SQL file "
+            "and use a safe asset name for extract.queries[].name."
         )
     return value
 

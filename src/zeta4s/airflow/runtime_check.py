@@ -171,7 +171,7 @@ def _probe_oracle(conn_id: str, conn_policy: RuntimeConnection) -> str:
 def _base_url_candidates(conn: RuntimeConnection, *, label: str, explicit_scheme: str | None = None) -> list[str]:
     host = conn.host
     if not host:
-        raise ValueError(f"{label} connection host 가 비어 있다: conn_id={conn.conn_id!r}")
+        raise ValueError(f"{label} connection host is empty: conn_id={conn.conn_id!r}")
     if host.startswith(("http://", "https://")):
         return [host.rstrip("/")]
     if explicit_scheme:

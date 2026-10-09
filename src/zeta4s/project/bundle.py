@@ -58,7 +58,7 @@ def _validate_step_graph_job_dependencies(step_graph_items: list[tuple[Path, Ste
         if previous is not None:
             previous_path, _ = previous
             errors.append(
-                f"{config_path.name}: job_id 가 중복된다: {job.job_id} ({previous_path.name}, {config_path.name})"
+                f"{config_path.name}: duplicate job_id: {job.job_id} ({previous_path.name}, {config_path.name})"
             )
             continue
         jobs_by_id[job.job_id] = (config_path, job)

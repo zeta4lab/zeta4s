@@ -716,7 +716,7 @@ class CliHomeContractTest(unittest.TestCase):
                     result = CliRunner().invoke(cli, ["project", "check", "retail", "--profile", "dev"])
 
                     self.assertEqual(result.exit_code, 0, result.output)
-                    self.assertIn("[project][check] project check 통과", result.output)
+                    self.assertIn("[project][check] project check passed", result.output)
                     latest = account_home / ".zeta4s" / "reports" / "retail" / "project-check.latest.json"
                     report = yaml.safe_load(latest.read_text(encoding="utf-8"))
                     self.assertEqual(report["summary"]["profile"], "dev")
@@ -808,7 +808,7 @@ class CliHomeContractTest(unittest.TestCase):
 
                     result = CliRunner().invoke(cli, ["project", "check", "retail", "--profile", "dev"])
 
-                    self.assertIn("[project][check] project check 실패", result.output)
+                    self.assertIn("[project][check] project check failed", result.output)
                     self.assertIn("missing profile connections: analytics_clickhouse", result.output)
                 finally:
                     os.chdir(previous_cwd)
@@ -909,7 +909,7 @@ class CliHomeContractTest(unittest.TestCase):
                         result = runner.invoke(cli, ["run", "retail", "daily", "--profile", "dev"])
 
                     self.assertEqual(result.exit_code, 1, result.output)
-                    self.assertIn("[project][check] project check 실패", result.output)
+                    self.assertIn("[project][check] project check failed", result.output)
                     self.assertIn("missing profile connections: analytics", result.output)
                     build_executor.assert_not_called()
                     self.assertFalse((cli_home() / "reports" / "retail" / "project-run.latest.json").exists())

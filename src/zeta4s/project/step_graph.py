@@ -29,19 +29,19 @@ PROJECT_POOL_STAGES = ("extract", "stage", "transform", "write")
 
 def validate_job_id(value: Any, label: str = "job_id") -> str:
     if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"{label} 은 비어 있을 수 없다.")
+        raise ValueError(f"{label} must not be empty.")
     normalized = value.strip()
     if not JOB_ID_RE.fullmatch(normalized):
-        raise ValueError(f"{label} 는 lowercase letters, digits, underscore, hyphen 만 사용할 수 있다.")
+        raise ValueError(f"{label} may only contain lowercase letters, digits, underscores, and hyphens.")
     return normalized
 
 
 def validate_step_id(value: Any, label: str = "step_id") -> str:
     if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"{label} 은 비어 있을 수 없다.")
+        raise ValueError(f"{label} must not be empty.")
     normalized = value.strip()
     if not STEP_ID_RE.fullmatch(normalized):
-        raise ValueError(f"{label} 는 letters, digits, underscore, hyphen 만 사용할 수 있다.")
+        raise ValueError(f"{label} may only contain letters, digits, underscores, and hyphens.")
     return normalized
 
 
@@ -73,11 +73,11 @@ def unsupported_config_paths(jobs_dir: Path) -> list[Path]:
 
 def _validate_ref(value: str, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"{field} 은 비어 있을 수 없다.")
+        raise ValueError(f"{field} must not be empty.")
     normalized = value.strip().replace("\\", "/")
     path = PurePosixPath(normalized)
     if path.is_absolute() or ".." in path.parts:
-        raise ValueError(f"{field} 은 project 내부 상대 경로여야 한다.")
+        raise ValueError(f"{field} must be a relative path inside the project.")
     return path.as_posix()
 
 
@@ -129,9 +129,9 @@ class StepGraphWhen(BaseModel):
     def _v_condition(self) -> "StepGraphWhen":
         conditions = [bool(self.success), bool(self.failed), bool(self.expr)]
         if sum(conditions) > 1:
-            raise ValueError("when 은 success, failed, expr 중 하나만 사용할 수 있다.")
+            raise ValueError("when accepts only one of success, failed, or expr.")
         if self.expr and not STEP_EXPR_RE.match(self.expr):
-            raise ValueError("when.expr 은 $steps.<id>.outputs.<name> <op> <literal> 형식이어야 한다.")
+            raise ValueError("when.expr must have the form $steps.<id>.outputs.<name> <op> <literal>.")
         return self
 
 
@@ -220,7 +220,7 @@ class StepGraphStep(BaseModel):
             return None
         value = value.strip()
         if not value:
-            raise ValueError("conn/pool 은 비어 있을 수 없다.")
+            raise ValueError("conn/pool must not be empty.")
         return value
 
     @field_validator("query")
@@ -772,11 +772,11 @@ class StepGraphJob(BaseModel):
     @model_validator(mode="after")
     def _v_graph(self) -> "StepGraphJob":
         if not self.steps:
-            raise ValueError("steps[] 는 최소 1개 필요하다.")
+            raise ValueError("steps[] requires at least one step.")
         ids = [step.id for step in self.steps]
         duplicated = sorted({step_id for step_id in ids if ids.count(step_id) > 1})
         if duplicated:
-            raise ValueError(f"steps[].step_id 가 중복된다: {', '.join(duplicated)}")
+            raise ValueError(f"duplicate steps[].step_id: {', '.join(duplicated)}")
         known = set(ids)
         for step in self.steps:
             unknown = sorted(dep for dep in step.depends_on if dep not in known)
@@ -802,7 +802,7 @@ def _validate_acyclic(steps: list[StepGraphStep]) -> None:
             return
         if step_id in visiting:
             cycle = stack[stack.index(step_id) :] + [step_id]
-            raise ValueError("step graph cycle 이 있다: " + " -> ".join(cycle))
+            raise ValueError("step graph has a cycle: " + " -> ".join(cycle))
         visiting.add(step_id)
         stack.append(step_id)
         for upstream in sorted(graph.get(step_id, set())):
@@ -837,7 +837,7 @@ def validate_step_graph_config(path: Path, config: dict[str, Any]) -> StepGraphJ
         return StepGraphJob.model_validate(config)
     except ValidationError as e:
         formatted = "\n".join(f"  - {'.'.join(str(x) for x in err['loc'])}: {err['msg']}" for err in e.errors())
-        raise ValueError(f"step graph schema 검증 실패 [{path.name}]:\n{formatted}") from e
+        raise ValueError(f"step graph schema validation failed [{path.name}]:\n{formatted}") from e
 
 
 def validate_step_graph_configs(config_items: list[tuple[Path, dict[str, Any]]], project_root: Path) -> dict[str, Any]:

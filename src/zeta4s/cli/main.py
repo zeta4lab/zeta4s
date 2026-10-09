@@ -24,7 +24,7 @@ import click
 import yaml
 
 from zeta4s.common.errors import UserFacingError
-from zeta4s.common.messages import render_message, resolve_language
+from zeta4s.common.messages import render_message
 from zeta4s.common.time_display import format_display_time
 from zeta4s.config.cli_config import DEFAULT_WORKSPACE_NAME
 from zeta4s.config.cli_config import cli_home, ensure_cli_home
@@ -99,7 +99,6 @@ TimezoneOption = click.option(
     envvar="ZETA4S_DISPLAY_TIMEZONE",
     help="Display timezone for run times and logs.",
 )
-_CLI_LANG = "ko"
 
 
 class ApiReportError(RuntimeError):
@@ -581,7 +580,7 @@ def _check_stale_deployment(root: Path, api_alias: str | None, mode: str) -> dic
     return result
 
 
-def _issue_from_exception(code: str, exc: Exception, *, lang: str, **extra: Any) -> dict[str, Any]:
+def _issue_from_exception(code: str, exc: Exception, **extra: Any) -> dict[str, Any]:
     if isinstance(exc, UserFacingError):
         issue_code = exc.code
         params = dict(exc.params)
@@ -593,23 +592,20 @@ def _issue_from_exception(code: str, exc: Exception, *, lang: str, **extra: Any)
     return {
         "code": issue_code,
         "severity": "error",
-        "message": _render_issue_message(issue_code, params, lang, default),
+        "message": _render_issue_message(issue_code, params, default),
         "params": params,
         **extra,
     }
 
 
-def _render_issue_message(code: str, params: dict[str, Any], lang: str, default: str) -> str:
-    message = render_message(code, params, lang, default=default)
+def _render_issue_message(code: str, params: dict[str, Any], default: str) -> str:
+    message = render_message(code, params, default=default)
     if default and default != message:
         return f"{message}\n{default}"
     return message
 
 
-def _run_static_verify(
-    project_root: Path, profile_id: str, profile_data: dict[str, Any], *, lang: str | None = None
-) -> dict[str, Any]:
-    selected_lang = lang or _CLI_LANG
+def _run_static_verify(project_root: Path, profile_id: str, profile_data: dict[str, Any]) -> dict[str, Any]:
     project = load_project_context(project_root)
     report: dict[str, Any] = {
         "status": "passed",
@@ -628,7 +624,7 @@ def _run_static_verify(
             code = f"Z4E_STATIC_{name.upper()}_001"
             report["status"] = "failed"
             report["gates"].append({"name": name, "status": "failed", "summary": {}, "issue_codes": [code]})
-            report["issues"].append(_issue_from_exception(code, e, lang=selected_lang, gate=name))
+            report["issues"].append(_issue_from_exception(code, e, gate=name))
 
     raw_config_items: list[tuple[Path, dict[str, Any]]] = []
     step_graph_items: list[tuple[Path, dict[str, Any]]] = []
@@ -892,7 +888,7 @@ def _project_requires_dbt(config_items: list[tuple[Path, dict[str, Any]]]) -> bo
     )
 
 
-def _report_summary_message(prefix: str, status: str, issue_count: int, lang: str) -> str:
+def _report_summary_message(prefix: str, status: str, issue_count: int) -> str:
     message_codes = {
         ("[project][check]", "passed"): "project.check.passed",
         ("[project][check]", "failed"): "project.check.failed",
@@ -900,19 +896,18 @@ def _report_summary_message(prefix: str, status: str, issue_count: int, lang: st
     code = message_codes.get((prefix, status))
     if not code:
         return f"{prefix} {status}: {issue_count} issues"
-    return f"{prefix} {render_message(code, {'issues': issue_count}, lang)}"
+    return f"{prefix} {render_message(code, {'issues': issue_count})}"
 
 
-def _print_report_summary(prefix: str, report: dict[str, Any], latest_path: Path, *, lang: str | None = None) -> int:
-    selected_lang = lang or _CLI_LANG
+def _print_report_summary(prefix: str, report: dict[str, Any], latest_path: Path) -> int:
     status = report.get("status") or "failed"
     issues = report.get("issues") or []
-    click.echo(_report_summary_message(prefix, str(status), len(issues), selected_lang))
+    click.echo(_report_summary_message(prefix, str(status), len(issues)))
     for issue in issues[:3]:
         click.echo(f"- {issue.get('code')}: {issue.get('message')}", err=True)
         _print_issue_detail(issue)
     if len(issues) > 3:
-        click.echo(render_message("report.more_issues", {"count": len(issues) - 3}, selected_lang), err=True)
+        click.echo(render_message("report.more_issues", {"count": len(issues) - 3}), err=True)
     try:
         report_ref = latest_path.relative_to(cli_home())
     except ValueError:
@@ -933,7 +928,7 @@ def _print_issue_detail(issue: Any) -> None:
         ("clickhouse_type", "ClickHouse type"),
         ("arrow_type", "Arrow type"),
         ("reason", "reason"),
-        ("suggestion", "조치"),
+        ("suggestion", "suggestion"),
     ]
     for key, label in fields:
         value = issue.get(key)
@@ -943,10 +938,10 @@ def _print_issue_detail(issue: Any) -> None:
 
 def _error(e: Exception, code: int = 1) -> int:
     if isinstance(e, UserFacingError):
-        message = render_message(e.code, e.params, _CLI_LANG, default=e.default_message)
+        message = render_message(e.code, e.params, default=e.default_message)
     else:
         message = str(e)
-    click.echo(render_message("cli.error", {"message": message}, _CLI_LANG), err=True)
+    click.echo(render_message("cli.error", {"message": message}), err=True)
     return code
 
 
@@ -956,10 +951,11 @@ def _catch(fn: Callable[[], int]) -> int:
         if code:
             raise click.exceptions.Exit(code)
         return code
-    except click.exceptions.Exit:
+    except (click.exceptions.Exit, BrokenPipeError):
+        # 출력을 읽는 쪽이 먼저 닫힌 것은 명령 실패가 아니다. main() 이 조용히 끝낸다.
         raise
     except click.UsageError as e:
-        click.echo(render_message("cli.error", {"message": str(e)}, _CLI_LANG), err=True)
+        click.echo(render_message("cli.error", {"message": str(e)}), err=True)
         raise click.exceptions.Exit(2)
     except (RuntimeError, ValueError, FileExistsError, OSError) as e:
         raise click.exceptions.Exit(_error(e))
@@ -988,12 +984,9 @@ def _show_version(ctx: click.Context, param: click.Parameter, value: bool) -> No
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
 @click.option("--version", is_flag=True, is_eager=True, expose_value=False, callback=_show_version)
-@click.option("--lang", type=click.Choice(["ko", "en"]), help="Display language for user-facing messages.")
-def cli(lang: str | None) -> None:
+def cli() -> None:
     """Operate zeta4s project artifacts and zeta4s-api."""
-    global _CLI_LANG
     ensure_cli_home()
-    _CLI_LANG = resolve_language(explicit=lang, config=load_cli_config())
 
 
 @cli.group("work")
@@ -1198,11 +1191,11 @@ def project_check(project_id: str, profile_id: str | None) -> int:
         root = _resolve_workspace_project(project_id)
         project = load_project_context(root)
         selected_profile_id, profile_data = select_profile(profile_id)
-        report = _run_static_verify(root, selected_profile_id, profile_data, lang=_CLI_LANG)
+        report = _run_static_verify(root, selected_profile_id, profile_data)
         _, latest = _write_report(
             project.project_id, "project-check", report, id_field="check_report_id", id_prefix="pc"
         )
-        return _print_report_summary("[project][check]", report, latest, lang=_CLI_LANG)
+        return _print_report_summary("[project][check]", report, latest)
 
     return _catch(run)
 
@@ -1231,12 +1224,12 @@ def project_run(project_id: str, job_id: str, profile_id: str | None) -> int:
             root = _resolve_workspace_project(project_id)
             project = load_project_context(root)
             selected_profile_id, profile_data = select_profile(profile_id)
-            check_report = _run_static_verify(root, selected_profile_id, profile_data, lang=_CLI_LANG)
+            check_report = _run_static_verify(root, selected_profile_id, profile_data)
             if check_report.get("status") != "passed":
                 _, check_latest = _write_report(
                     project.project_id, "project-check", check_report, id_field="check_report_id", id_prefix="pc"
                 )
-                _print_report_summary("[project][check]", check_report, check_latest, lang=_CLI_LANG)
+                _print_report_summary("[project][check]", check_report, check_latest)
                 return 1
             report = _run_local_project_job(project, job_id, selected_profile_id, profile_data)
             report_path, latest = _write_report(
@@ -2057,7 +2050,7 @@ def _write_env_file_value(path: Path, key: str, value: str) -> None:
     path.write_text("\n".join(updated) + "\n", encoding="utf-8")
 
 
-def main(argv: list[str] | None = None) -> int:
+def _run_cli(argv: list[str] | None) -> int:
     try:
         result = cli.main(args=argv, prog_name="z4s", standalone_mode=False)
     except click.exceptions.Exit as e:
@@ -2069,6 +2062,30 @@ def main(argv: list[str] | None = None) -> int:
         click.echo("Aborted!", err=True)
         return 1
     return int(result or 0)
+
+
+def _silence_stdout() -> None:
+    # Python 문서의 SIGPIPE 권장 패턴: 남은 buffer 를 interpreter 종료 시 flush 하다
+    # 다시 BrokenPipeError 를 내지 않도록 stdout fd 를 devnull 로 돌린다.
+    # signal.SIGPIPE 를 SIG_DFL 로 바꾸는 방식은 Windows 에 SIGPIPE 가 없어 쓰지 않는다.
+    try:
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.__stdout__.fileno())
+        os.close(devnull)
+    except (OSError, AttributeError, ValueError):
+        pass
+
+
+def main(argv: list[str] | None = None) -> int:
+    try:
+        code = _run_cli(argv)
+        sys.stdout.flush()
+        return code
+    except BrokenPipeError:
+        # `z4s ... | head -1` 처럼 읽는 쪽이 먼저 닫힌 경우다. 오류를 출력하지 않고
+        # Python 이 EPIPE 에서 쓰는 종료 코드 1 로 끝낸다.
+        _silence_stdout()
+        return 1
 
 
 if __name__ == "__main__":
