@@ -1,5 +1,5 @@
 scheduler: prefect
-api_endpoint: http://127.0.0.1:8088
+api_endpoint: http://127.0.0.1:18088
 token_env: ZETA4S_API_TOKEN
 connections:
   clickhouse_runtime:

@@ -477,6 +477,12 @@ services:
         condition: service_completed_successfully
       postgres:
         condition: service_healthy
+      # checkpoint profile 이 켜져 있으면 Iceberg warehouse 가 만들어진 뒤에 뜬다. 그래서
+      # `up --wait zeta4s-api` 가 끝나면 bootstrap 이 바로 성공한다. profile 이 꺼져 있으면
+      # required: false 라 무시된다.
+      lakekeeper-init:
+        condition: service_completed_successfully
+        required: false
 
   prefect-server:
     # 공식 이미지를 그대로 쓴다. zeta4s 를 전혀 쓰지 않으므로 우리 이미지일 이유가 없다 —

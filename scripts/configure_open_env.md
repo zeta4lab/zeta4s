@@ -47,8 +47,11 @@ bash scripts/configure_open_env.sh --dry-run
 
 ```bash
 bash scripts/build_images.sh --load
-docker compose --env-file .env --profile asset up -d
+docker compose --env-file .env --profile prefect --profile checkpoint up -d --wait zeta4s-api prefect-worker
 ```
+
+Airflow, Oracle, Elasticsearch, ClickHouse 까지 띄우는 전체 구성은 `--profile airflow --profile asset` 을
+더한다.
 
 기본 Compose 명령도 `.env` 를 자동으로 읽지만, 사용하는 env 파일을 명확히 남기려면
 `--env-file .env` 를 붙인다.

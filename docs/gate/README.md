@@ -11,14 +11,21 @@ runtime data backend로 추가하며 metastore 기본값을 바꾸지 않는다.
 ```bash
 bash scripts/configure_open_env.sh --force
 bash scripts/build_images.sh --load
-docker compose --env-file .env --profile airflow --profile prefect --profile asset --profile checkpoint up -d --wait
+docker compose --env-file .env --profile airflow --profile prefect --profile asset --profile checkpoint \
+  up -d --wait zeta4s-api prefect-worker airflow-apiserver airflow-scheduler airflow-dag-processor \
+  oracle elasticsearch metastore
 ```
+
+`--wait` 는 상시 서비스만 지정한다. migration, bucket·warehouse 생성 같은 one-shot 컨테이너는
+종료하면서 `--wait` 를 실패로 만들기 때문이다. `zeta4s-api` 는 이 컨테이너들이 끝난 뒤에 뜬다.
 
 Volume 을 포함해 runtime state 를 초기화하려면 다음 명령을 사용한다.
 
 ```bash
 docker compose --env-file .env --profile airflow --profile prefect --profile asset --profile checkpoint down -v --remove-orphans
-docker compose --env-file .env --profile airflow --profile prefect --profile asset --profile checkpoint up -d --wait
+docker compose --env-file .env --profile airflow --profile prefect --profile asset --profile checkpoint \
+  up -d --wait zeta4s-api prefect-worker airflow-apiserver airflow-scheduler airflow-dag-processor \
+  oracle elasticsearch metastore
 ```
 
 ## Release Gate

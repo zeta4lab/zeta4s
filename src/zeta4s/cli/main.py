@@ -1398,7 +1398,7 @@ def api() -> None:
 
 @api.command("connect")
 @click.argument("alias", required=False, default="local", metavar="NAME")
-@click.option("--url", default="http://127.0.0.1:8088", show_default=True)
+@click.option("--url", default="http://127.0.0.1:18088", show_default=True)
 @click.option("--env-file", type=PathParam, default=Path(".env"), show_default=True)
 @click.option("--token-env", help="Environment variable containing bearer token.")
 @click.option("--token-file", type=PathParam, help="API token file. Defaults to z4s home secrets/api.token.")

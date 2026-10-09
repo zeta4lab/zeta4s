@@ -1,0 +1,40 @@
+name: Bug report
+description: Something does not work as documented.
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you expect, and what happened instead? Include the exact error output.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal commands and project files (`project.yml`, `jobs/*.yml`, profile without secrets).
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: zeta4s version
+      description: Output of `python -c "import zeta4s; print(zeta4s.__version__)"` or the image tag.
+    validations:
+      required: true
+  - type: dropdown
+    id: scheduler
+    attributes:
+      label: Scheduler backend
+      options:
+        - Not applicable (z4s run / project check)
+        - Prefect
+        - Airflow
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Docker / Compose version, deployment (Compose, k3s, other).
