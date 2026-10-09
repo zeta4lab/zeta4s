@@ -482,7 +482,7 @@ services:
     # 공식 이미지를 그대로 쓴다. zeta4s 를 전혀 쓰지 않으므로 우리 이미지일 이유가 없다 —
     # engine 이 외부라는 것이 배포에서 그대로 드러난다. version 은 zeta4s-api 의 prefect
     # SDK 와 맞춘다.
-    image: ${PREFECT_IMAGE:-prefecthq/prefect:${PREFECT_VERSION:-3.7.8}-python${PYTHON_VERSION:-3.12}}
+    image: ${PREFECT_IMAGE:-prefecthq/prefect:${PREFECT_VERSION:-3.8.7}-python${PYTHON_VERSION:-3.12}}
     entrypoint: prefect
     command: ["server", "start", "--host", "0.0.0.0"]
     environment:
