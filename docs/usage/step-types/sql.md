@@ -222,6 +222,12 @@ params:
 `$context.<name>` 은 scheduler adapter가 canonical runtime context로 정규화한 값을 bind
 parameter로 전달하는 표현이다.
 
+SQL 은 backend 와 무관하게 `:name` 으로 bind parameter 를 쓴다. ClickHouse backend 는 실행 직전에
+`:name` 을 ClickHouse server-side parameter `{name:Type}` 로 바꾸고, `Type` 은 bind 값의 Python
+type 에서 정한다. 문자열 literal, quote 된 식별자, comment, `::` cast 안의 `:` 는 parameter 로 보지
+않으며 SQL 안의 `%` 는 그대로 전달된다. 값이 없는 `:name` 이 있으면 step 은 실행 전에 실패한다.
+변환 규칙의 정본은 `src/zeta4s/runtime/backends/clickhouse/params.py` 다.
+
 참조할 수 있는 runtime context key 는 `src/zeta4s/runtime/native.py` 의 `_runtime_context_params` 가
 정본이다. 없는 key 를 참조하면 step 이 실패한다.
 
