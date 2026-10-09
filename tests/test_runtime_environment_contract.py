@@ -75,7 +75,7 @@ class RuntimeEnvironmentContractTest(unittest.TestCase):
     def test_zeta4s_api_image_proves_airflow_is_absent(self) -> None:
         """이미지가 스스로 headless 임을 증명한다.
 
-        누가 의존을 되살리면 배포된 뒤 조용히 결합이 돌아오는 대신 build 가 깨진다.
+        누가 의존을 추가하면 배포된 뒤 조용히 결합이 돌아오는 대신 build 가 깨진다.
         """
         dockerfile = (ROOT / "docker/zeta4s-api/Dockerfile").read_text(encoding="utf-8")
         self.assertIn("import airflow", dockerfile)
@@ -112,7 +112,7 @@ class RuntimeEnvironmentContractTest(unittest.TestCase):
             self.assertFalse(name.startswith(("airflow-", "prefect-")), f"{name} 이 기본으로 뜬다")
 
     def test_engines_do_not_leak_into_each_other(self) -> None:
-        """Prefect engine 이 Airflow metastore DSN 을 입고 있던 것이 대칭이 깨진 자리였다."""
+        """Prefect engine 은 Airflow metastore DSN 을 받지 않는다. 그래야 두 engine 이 대칭이다."""
         compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
         worker = compose["services"]["prefect-worker"]
         state_init = compose["services"]["z4s-state-init"]

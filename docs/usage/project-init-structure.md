@@ -41,7 +41,7 @@
 `project init` 은 실행 job, SQL, dbt project 를 생성하지 않는다.
 
 `project init --profile <profile_id> --with-dbt <project_id>` 는 선택한 profile 의 dbt 가능 connection 을
-기준으로 `dbt/<conn>/` skeleton 을 함께 생성한다. 1.0.0 대상 dbt 가능 connection type 은
+기준으로 `dbt/<conn>/` skeleton 을 함께 생성한다. dbt 가능 connection type 은
 `clickhouse`, `oracle` 이다. `elasticsearch` connection 은 dbt project skeleton 생성 대상이 아니다.
 
 ```text

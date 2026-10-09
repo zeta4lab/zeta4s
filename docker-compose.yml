@@ -508,8 +508,8 @@ services:
     profiles: [prefect]
 
   prefect-worker:
-    # Airflow 이미지도 AIRFLOW__* 도 받지 않는다. Prefect engine 이 Airflow metastore DSN 을
-    # 입고 있던 것이 대칭이 깨진 자리였다. zeta4s-api 이미지는 zeta4s runtime 과 prefect SDK
+    # Airflow 이미지도 AIRFLOW__* 도 받지 않는다. Prefect engine 은 Airflow metastore DSN 에
+    # 기대지 않아야 두 engine 이 대칭이다. zeta4s-api 이미지는 zeta4s runtime 과 prefect SDK
     # 를 갖고 airflow 는 없다 — prefect worker 에 필요한 것이 정확히 그것이다.
     image: ${ZETA4S_API_IMAGE:?Set ZETA4S_API_IMAGE by running scripts/configure_open_env.sh}
     user: "${ZETA4S_RUNTIME_UID:-50000}:0"

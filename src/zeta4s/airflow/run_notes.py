@@ -43,7 +43,7 @@ def sync_airflow_run_notes(
     dag_path = urllib.parse.quote(dag_id, safe="")
     run_path = urllib.parse.quote(airflow_run_id, safe="")
 
-    # map 되지 않은 task 만 note 를 단다. metastore 경로의 map_index == -1 필터와 같다.
+    # map 되지 않은 task(map_index == -1) 만 note 를 단다.
     task_instances = [
         row
         for row in client.collect(

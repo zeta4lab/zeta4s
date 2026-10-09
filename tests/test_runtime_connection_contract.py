@@ -169,7 +169,7 @@ class RuntimeConnectionContractTest(unittest.TestCase):
         }
         store = _FakeSecretStore({"prod.analytics_clickhouse.password": "plain-password"})
 
-        # profile 경로는 airflow 에 닿지 않는다. import 를 막아 두면 폴백이 되살아나는 순간
+        # profile 경로는 airflow 에 닿지 않는다. import 를 막아 두면 airflow 폴백이 생기는 순간
         # 이 테스트가 먼저 깨진다.
         with (
             patch.dict("sys.modules", {"airflow": None}),

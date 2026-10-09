@@ -84,7 +84,7 @@ steps:
 작성하지 않는다. zeta4s 가 Step Graph 의 실행 stage 를 기준으로 pool 이름과 slot 을 산출해 선택한
 scheduler backend 에 projection 하는 것이 목표 구조다.
 
-현재 job schema 는 step/job 수준의 explicit pool override 도 허용하지만 예외적 호환 surface 이며
+현재 job schema 는 step/job 수준의 explicit pool override 도 허용하지만 예외적 override surface 이며
 권장 authoring contract 가 아니다. 정확한 허용 field 와 산출 규칙은 `../README.md` 의 코드 위치
 포인터가 정본이다. Airflow와 Prefect adapter는 같은 effective pool resolver를 사용한다. 자동 pool
 resource는 deploy가 관리하지만 explicit override resource는 자동으로 만들지 않으므로, 사용자 지정

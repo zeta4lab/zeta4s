@@ -60,7 +60,7 @@ RUN uv pip install --python "${VIRTUAL_ENV}/bin/python" --no-cache --strict --no
     && uv pip check --python "${VIRTUAL_ENV}/bin/python" \
     && rm -rf /tmp/zeta4s-dist
 
-# airflow 가 설치되지 않았음을 이미지가 스스로 증명한다. 누가 의존을 되살리면 build 가
+# airflow 가 설치되지 않았음을 이미지가 스스로 증명한다. 누가 의존을 추가하면 build 가
 # 깨진다 — 배포된 뒤 조용히 결합이 돌아오는 것보다 낫다.
 RUN if "${VIRTUAL_ENV}/bin/python" -c "import airflow" 2>/dev/null; then \
         echo "airflow must not be installed in the zeta4s-api image" >&2; exit 1; \

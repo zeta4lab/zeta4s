@@ -837,8 +837,7 @@ def _airflow_pause_and_terminate(
 ) -> dict[str, Any]:
     """project 의 DAG 을 모두 멈추고 살아 있는 run 을 끝낸다.
 
-    undeploy 와 runtime reset 이 같은 수렴을 쓴다. 주입 시절에는 code 가 문자열이라 공유할
-    수단이 없어 양쪽에 복제돼 있었다.
+    undeploy 와 runtime reset 이 같은 수렴을 쓴다.
     """
     from zeta4s.airflow.dags import (
         converge_project_active_runs_terminated,
@@ -1683,9 +1682,8 @@ def _filtered_log_entries(
 ) -> list[dict[str, Any]]:
     """Airflow task log 를 REST 로 읽는다.
 
-    파일을 glob 하던 시절에는 `attempt=N.log` 가 시도를 열거해 줬다. REST 는 시도를 하나씩
-    지목해야 하므로 task instance 의 `try_number` 가 그 자리를 대신한다 — 그것이 마지막
-    시도 번호다.
+    REST 는 시도를 하나씩 지목해야 하므로 task instance 의 `try_number` 로 시도를 열거한다
+    — 그것이 마지막 시도 번호다.
     """
     from zeta4s.airflow import runs as airflow_runs
 
@@ -2054,8 +2052,8 @@ def _run_summary(run: dict[str, Any], timezone: str | None = None) -> dict[str, 
     task_state = _airflow_task_instances(run, timezone)
     airflow_tasks = [task for task in task_state.get("tasks") or [] if isinstance(task, dict)]
     task_results = _task_results_by_task_id(run["run_id"])
-    # 파일을 세던 시절과 같은 뜻이다. `try_number` 가 0 이면 한 번도 시도하지 않아 로그가
-    # 없다 — upstream_failed 가 그렇다. 실배포 run 19개로 파일 존재 여부와 대조했다.
+    # 로그가 있는 task 다. `try_number` 가 0 이면 한 번도 시도하지 않아 로그가 없다
+    # — upstream_failed 가 그렇다.
     log_task_ids = {str(task.get("task_id")) for task in airflow_tasks if int(task.get("try_number") or 0) >= 1}
     tasks: list[dict[str, Any]] = []
     counts = {"success": 0, "failed": 0, "skipped": 0}

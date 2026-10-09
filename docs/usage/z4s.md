@@ -105,7 +105,7 @@ Profile 이 workspace 에 1개만 있으면 그 profile 을 선택한다. Profil
 | `api undeploy` | Project operation | local profile 이 아니라 active deployment 에 저장된 backend 로 scheduler 배포와 artifact registration 을 해제한다. backend data cleanup 은 포함하지 않는다. |
 | `api run` | Deployed project query/operation | active deployment를 project/job/run 기준으로 실행하고 관측한다. |
 
-재구성 기준:
+구성 기준:
 
 - CLI 는 metastore bootstrap 정보를 profile 에서 읽지 않는다.
 - `api deploy` 는 metastore bootstrap 을 암묵 실행하지 않는다. Metastore 가 준비되지 않았으면

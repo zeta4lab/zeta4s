@@ -122,9 +122,8 @@ git config blame.ignoreRevsFile .git-blame-ignore-revs
 상대 link 가 실존하는지 검사한다. 대상 최상위 directory 는 git 이 추적하는 것에서
 산출하므로 directory 가 늘어도 검사에서 빠지지 않는다.
 
-서술의 정확성은 검사하지 않는다. 기계로 확인 가능한 것만 gate 로 만든다. 예를 들어
-문서의 version 문자열은 대부분 "1.0.0 기준선" 같은 마일스톤 표현이라 실제 version 값과
-구분할 수 없으므로 검사하지 않는다.
+서술의 정확성은 검사하지 않는다. 기계로 확인 가능한 것만 gate 로 만든다. 문서는 version
+값을 복제하지 않으므로 version 문자열도 검사 대상이 아니다.
 
 ## Version Contract
 

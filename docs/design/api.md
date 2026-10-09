@@ -28,10 +28,9 @@ metastore 에는 유지되지만 Airflow DAG parse 입력에는 들어가지 않
 ## Schedule Surface
 
 Schedule definition은 project deploy에 포함된다. 별도 schedule CLI 그룹과 schedule 전용
-endpoint는 없다. Schedule 운영 interface는 이 변경에 포함하지 않는다.
+endpoint는 없다. Schedule 운영 interface는 현재 계약에 포함하지 않는다.
 
-Prefect 구현 package 는 `zeta4s.prefect`다. 과거 `zeta4s.scheduler` 호환 package는 두지
-않는다. 이름 변경과 함께 더 넓은 module 재배치는 하지 않는다.
+Prefect 구현 package 는 `zeta4s.prefect`다.
 
 ## Failure Semantics
 

@@ -50,7 +50,7 @@ def _client(transport) -> AirflowRestClient:  # noqa: ANN001
 
 
 class PoolEntityShapeTest(unittest.TestCase):
-    """실배포 회귀: project pool payload 는 stage 를 싣고 다니는데 PoolBody 는 거부한다."""
+    """project pool payload 는 stage 를 싣고 다니는데 PoolBody 는 거부한다."""
 
     def test_stage_field_is_dropped(self) -> None:
         entity = assets._pool_entity({"name": "z4p_p_extract", "stage": "extract", "slots": 8, "description": "d"})
@@ -58,7 +58,7 @@ class PoolEntityShapeTest(unittest.TestCase):
         self.assertNotIn("stage", entity)
 
     def test_real_project_pool_payload_shape_is_accepted(self) -> None:
-        # project_pool_payloads 가 실제로 만드는 형태다. fake payload 로는 이 회귀를 못 잡았다.
+        # project_pool_payloads 가 실제로 만드는 형태다. fake payload 로는 이 경계를 검증할 수 없다.
         payload = {
             "name": "z4p_canonical__showcase_extract",
             "stage": "extract",
@@ -122,14 +122,13 @@ class RestIsRequiredTest(unittest.TestCase):
             self.assertIn("ZETA4S_AIRFLOW_REST_API_BASE_URL", str(ctx.exception))
 
 
-class RemovedDeadCodeTest(unittest.TestCase):
-    """CLI subprocess 와 metastore 를 쓰던 미사용 경로는 사라졌다.
+class AssetsRestOnlyTest(unittest.TestCase):
+    """assets 는 Airflow CLI subprocess 나 metastore 경로를 두지 않는다.
 
-    export 는 REST 가 password 를 마스킹해 동등 구현이 불가능했는데, 호출부가 없어
-    되살릴 이유도 없었다.
+    asset 조작은 REST 로만 한다. REST 는 password 를 마스킹하므로 export 는 제공하지 않는다.
     """
 
-    def test_subprocess_helpers_are_gone(self) -> None:
+    def test_assets_have_no_subprocess_helpers(self) -> None:
         for name in ("_run", "export_assets", "delete_assets", "apply_assets", "validate_assets"):
             self.assertFalse(hasattr(assets, name), f"{name} 이 남아 있다")
 

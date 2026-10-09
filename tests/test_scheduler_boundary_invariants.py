@@ -48,7 +48,7 @@ class SchedulerBoundaryInvariantTest(unittest.TestCase):
         cli_source = (ROOT / "src" / "zeta4s" / "cli" / "main.py").read_text(encoding="utf-8").lower()
         self.assertNotIn("prefect", cli_source)
 
-    def test_rejected_full_plan_scheduler_adapter_is_removed(self) -> None:
+    def test_scheduler_adapter_does_not_run_full_plan(self) -> None:
         source = "\n".join(path.read_text(encoding="utf-8") for path in (ROOT / "src" / "zeta4s").rglob("*.py"))
         self.assertNotIn("RunnerBackedSchedulerAdapter", source)
         self.assertNotIn("SchedulerRunRequest", source)
@@ -57,11 +57,11 @@ class SchedulerBoundaryInvariantTest(unittest.TestCase):
 class AirflowHeadlessInvariantTest(unittest.TestCase):
     """zeta4s-api 는 Airflow 에 REST 로만 붙고 Airflow 는 standalone DAG만 읽는다.
 
-    **파일 목록으로는 판단할 수 없다.** `api/app.py` 는 airflow 를 직접 import 하지 않으면서도
-    `runtime_check.py` 를 거쳐 airflow 에 닿았던 적이 있다. 어떤 파일 단위 검사에도 걸리지
-    않는 경로였다. 그래서 import 그래프로 본다.
+    **파일 목록으로는 판단할 수 없다.** `api/app.py` 가 airflow 를 직접 import 하지 않아도
+    다른 module 을 거쳐 airflow 에 닿을 수 있고, 그런 경로는 어떤 파일 단위 검사에도 걸리지
+    않는다. 그래서 import 그래프로 본다.
 
-    기존 worker-side module은 distribution에 남아 있어도 공식 Airflow image에서 import되지
+    worker-side module은 distribution에 남아 있어도 공식 Airflow image에서 import되지
     않는다. zeta4s-api process도 airflow package를 import하지 않는다.
     """
 
@@ -116,10 +116,9 @@ class AirflowHeadlessInvariantTest(unittest.TestCase):
         self.assertEqual(_airflow_cli_subprocess_offenders(), [])
 
     def test_api_does_not_inject_python_code_into_a_subprocess(self) -> None:
-        """code 주입은 app.py 를 airflow 로부터 떼어 두려던 우회였다.
+        """app.py 는 Airflow 에 REST 로만 붙으므로 subprocess 에 code 를 주입하지 않는다.
 
-        REST 로 옮긴 이상 되살릴 이유가 없다. 되살아나면 airflow import 가 문자열 안으로
-        숨어 import 그래프 검사를 통째로 우회한다.
+        주입하면 airflow import 가 문자열 안으로 숨어 import 그래프 검사를 통째로 우회한다.
         """
         source = (ROOT / "src" / "zeta4s" / "api" / "app.py").read_text(encoding="utf-8")
         self.assertNotIn("_airflow_metadata_json", source)

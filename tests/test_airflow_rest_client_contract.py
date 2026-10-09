@@ -120,7 +120,7 @@ class AirflowRestClientContractTest(unittest.TestCase):
         self.assertEqual(transport.token_issue_count, 1)
 
     def test_expired_token_403_triggers_reissue_and_retry(self) -> None:
-        # 실측 회귀 방지: 무효/만료 JWT 는 401 이 아니라 403 "Invalid JWT token" 이다.
+        # 무효/만료 JWT 는 401 이 아니라 403 "Invalid JWT token" 이다.
         # 401 로만 재발급을 감지하면 24h 뒤 조용히 실패한다.
         transport = _FakeTransport()
         client = AirflowRestClient(base_url="http://airflow:8080", username="admin", password="pw", transport=transport)

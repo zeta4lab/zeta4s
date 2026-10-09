@@ -102,7 +102,7 @@ steps:
 ```
 
 `oracle.call` 는 `call` 을 `BEGIN <call>; END;` 형태로 실행한다. Procedure return value 나 OUT
-parameter 를 graph output 으로 공개하는 계약은 1.0.0 계약에 포함하지 않는다.
+parameter 를 graph output 으로 공개하는 계약은 현재 계약에 포함하지 않는다.
 
 ## Input
 
@@ -258,7 +258,7 @@ query: sql/clickhouse/build_order_metrics.sql
 - `..` 을 포함하는 project 외부 경로
 
 SQL file 은 하나의 statement 또는 하나의 PL/SQL block 을 담는다. 여러 DML 을 한 파일에 넣어 순차
-실행하는 계약은 1.0.0 계약에 포함하지 않는다.
+실행하는 계약은 현재 계약에 포함하지 않는다.
 
 여러 statement 를 순서대로 실행해야 하면 step 을 여러 개로 나누고 `depends_on` 으로 연결한다.
 
