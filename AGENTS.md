@@ -16,6 +16,8 @@
 ## 기본 원칙
 
 - 설명은 항상 한국어로 한다.
+- 외부 사용자가 처음 읽는 `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `.github/` 템플릿은
+  영어로 쓴다. `docs/` 와 `AGENTS.md` 는 한국어로 쓴다.
 - 파일 경로, 명령어, 함수명, config key 같은 literal 은 원문 표기를 유지한다.
 - zeta4s 의 궁극 목표는 AI Agent 가 생성한 계약(Contract)을 Step Graph 로 실행하는 범용
   Runtime Engine 이 되는 것이다.

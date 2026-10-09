@@ -154,5 +154,6 @@ else
   echo "ZETA4S_RUNTIME_UID=${ZETA4S_RUNTIME_UID}"
   echo
   echo "Next steps:"
-  echo "  docker compose --env-file ${OUTPUT_FILE} --profile asset up -d"
+  echo "  bash scripts/build_images.sh --load"
+  echo "  docker compose --env-file ${OUTPUT_FILE} --profile prefect --profile checkpoint up -d --wait zeta4s-api prefect-worker"
 fi
