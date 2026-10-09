@@ -330,5 +330,5 @@ Step Graph 에서 자동 산출해 선택한 backend 에 동기화하는 project
 수동으로 state 를 변경하면 release gate 재현성이 떨어진다.
 
 Project artifact registration 의 source of truth 는 metastore 다. `zeta4s-api` 는 deploy 중 metastore
-registration 을 갱신하고 scheduler snapshot 을 publish 한다. Run 생성 전에 local artifact 와 metastore 의
+registration 을 갱신하고 Airflow DAG source 를 publish 한다. Run 생성 전에 local artifact 와 metastore 의
 active deployment artifact 가 다르면 stale deployment 로 처리한다.

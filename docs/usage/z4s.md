@@ -49,12 +49,12 @@ z4s api remove prod
 ```text
 /var/lib/zeta4s/
   artifacts/
-  registered/
+  airflow-dags/
   runs/
   locks/
 ```
 
-API home 은 workspace 가 아니다. API home 은 artifact storage, scheduler snapshot, run artifact,
+API home 은 workspace 가 아니다. API home 은 artifact storage, generated Airflow DAG source, run artifact,
 task result, lock 같은 service runtime state 를 저장한다. z4s home 과 workspace 는 API home 아래에
 두지 않는다.
 

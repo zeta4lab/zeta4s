@@ -10,7 +10,6 @@ import unittest
 from unittest.mock import patch
 
 from fastapi import HTTPException
-import yaml
 
 from zeta4s.api.app import (
     _REDACTED,
@@ -36,11 +35,6 @@ from zeta4s.metastore.backends.clickhouse import (
     ClickHouseStepStateRepository,
 )
 from zeta4s.metastore.contracts import DeploymentRegistration
-from zeta4s.metastore.scheduler_snapshot import (
-    load_scheduler_snapshot,
-    publish_scheduler_snapshot,
-    scheduler_last_good_snapshot_path,
-)
 from zeta4s.core import ExecutionContext, RunResult, StepExecutionState, StepOutputBinding
 from zeta4s.runtime.metastore_reporter import MetastoreRunReporter
 from zeta4s.runtime.project_metadata import (
@@ -80,7 +74,7 @@ class MetastoreFoundationTest(unittest.TestCase):
         )
         self.assertNotIn("scheduler_backend String DEFAULT", ddl)
 
-    def test_registration_store_publishes_scheduler_snapshot_from_metastore(self) -> None:
+    def test_registration_store_publishes_airflow_dag_sources_from_metastore(self) -> None:
         repository = _FakeDeploymentRepository()
         adapter = _FakeMetastoreAdapter(repository)
 
@@ -90,7 +84,7 @@ class MetastoreFoundationTest(unittest.TestCase):
                 "zeta4s.api.services.registration_store.metastore_adapter_factory",
                 return_value=adapter,
             ),
-            patch("zeta4s.airflow.dag_source.publish_airflow_dag_sources"),
+            patch("zeta4s.airflow.dag_source.publish_airflow_dag_sources") as publish,
         ):
             home = Path(tmp_dir)
             path = registration_store.upsert_project_registration(
@@ -102,7 +96,7 @@ class MetastoreFoundationTest(unittest.TestCase):
                 home=home,
             )
 
-            self.assertEqual(path, home / "registered" / "registered-dags.yml")
+            self.assertEqual(path, home / "airflow-dags")
             registration_store.upsert_project_registration(
                 project_id="warehouse",
                 artifact_id="sha256:def",
@@ -112,12 +106,12 @@ class MetastoreFoundationTest(unittest.TestCase):
                 home=home,
             )
 
-            snapshot = yaml.safe_load(path.read_text(encoding="utf-8"))
-            self.assertEqual([item["project_id"] for item in snapshot["registrations"]], ["retail"])
-            self.assertEqual(snapshot["registrations"][0]["artifact_id"], "sha256:abc")
-            self.assertEqual(snapshot["registrations"][0]["profile_id"], "prod")
-            self.assertEqual(snapshot["registrations"][0]["scheduler_backend"], "airflow")
-            self.assertEqual(snapshot["registrations"][0]["dags"][0]["dag_id"], "retail__daily")
+            published = publish.call_args.args[0]
+            self.assertEqual([item["project_id"] for item in published], ["retail"])
+            self.assertEqual(published[0]["artifact_id"], "sha256:abc")
+            self.assertEqual(published[0]["profile_id"], "prod")
+            self.assertEqual(published[0]["scheduler_backend"], "airflow")
+            self.assertEqual(published[0]["dags"][0]["dag_id"], "retail__daily")
 
             loaded = registration_store.load_registrations(home)
             self.assertEqual(
@@ -128,7 +122,7 @@ class MetastoreFoundationTest(unittest.TestCase):
             removed_path, removed = registration_store.remove_project_registration("retail", home=home)
             self.assertEqual(removed_path, path)
             self.assertEqual(removed["project_id"], "retail")
-            self.assertEqual(load_scheduler_snapshot(path)["registrations"], [])
+            self.assertEqual(publish.call_args.args[0], [])
 
     def test_registration_store_rejects_unknown_scheduler_backend(self) -> None:
         repository = _FakeDeploymentRepository()
@@ -152,31 +146,6 @@ class MetastoreFoundationTest(unittest.TestCase):
                 )
 
         self.assertEqual(repository.items, {})
-
-    def test_scheduler_snapshot_publish_is_readable(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            home = Path(tmp_dir)
-            path = publish_scheduler_snapshot(
-                registrations=[
-                    {"project_id": "b_project", "artifact_id": "sha256:b", "dags": []},
-                    {"project_id": "a_project", "artifact_id": "sha256:a", "dags": []},
-                ],
-                home=home,
-            )
-
-            data = load_scheduler_snapshot(path)
-            self.assertEqual([item["project_id"] for item in data["registrations"]], ["a_project", "b_project"])
-
-    def test_scheduler_snapshot_publish_writes_last_good_snapshot(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            home = Path(tmp_dir)
-            publish_scheduler_snapshot(
-                registrations=[{"project_id": "retail", "artifact_id": "sha256:abc", "dags": []}],
-                home=home,
-            )
-
-            data = load_scheduler_snapshot(scheduler_last_good_snapshot_path(home))
-            self.assertEqual(data["registrations"][0]["project_id"], "retail")
 
     def test_clickhouse_registration_reads_latest_project_state_by_revision(self) -> None:
         client = _FakeClickHouseClient(

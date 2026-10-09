@@ -1,4 +1,4 @@
-"""Deployment registration store and scheduler snapshot publisher."""
+"""Deployment registration store and Airflow DAG source publisher."""
 
 from __future__ import annotations
 
@@ -9,11 +9,6 @@ from zeta4s.api.services.artifact_store import ZETA4S_API_HOME
 from zeta4s.api.services.locks import registration_lock
 from zeta4s.metastore.contracts import require_scheduler_backend
 from zeta4s.metastore.factory import metastore_adapter_factory
-from zeta4s.metastore.scheduler_snapshot import publish_scheduler_snapshot, scheduler_snapshot_path
-
-
-def registration_path(home: Path = ZETA4S_API_HOME) -> Path:
-    return scheduler_snapshot_path(home)
 
 
 def load_registrations(home: Path = ZETA4S_API_HOME) -> dict[str, Any]:
@@ -21,14 +16,14 @@ def load_registrations(home: Path = ZETA4S_API_HOME) -> dict[str, Any]:
     return {"registrations": [item.as_scheduler_item() for item in repository.list_active()]}
 
 
-def publish_current_scheduler_snapshot(home: Path = ZETA4S_API_HOME) -> Path:
-    from zeta4s.airflow.dag_source import publish_airflow_dag_sources
+def publish_current_airflow_dag_sources(home: Path = ZETA4S_API_HOME) -> Path:
+    """Active Airflow registration 을 standalone DAG source 로 publish 하고 그 directory 를 돌려준다."""
+    from zeta4s.airflow.dag_source import airflow_dags_dir, publish_airflow_dag_sources
 
     data = load_registrations(home)
     registrations = [item for item in data.get("registrations", []) if item["scheduler_backend"] == "airflow"]
-    path = publish_scheduler_snapshot(registrations=registrations, home=home)
     publish_airflow_dag_sources(registrations, home=home)
-    return path
+    return airflow_dags_dir(home)
 
 
 def upsert_project_registration(
@@ -50,7 +45,7 @@ def upsert_project_registration(
             scheduler_backend=scheduler_backend,
             dags=dags,
         )
-        return publish_current_scheduler_snapshot(home)
+        return publish_current_airflow_dag_sources(home)
 
 
 def remove_project_registration(
@@ -61,7 +56,7 @@ def remove_project_registration(
     with registration_lock(home=home):
         repository = metastore_adapter_factory().deployment_repository
         removed = repository.remove_active(project_id)
-        path = publish_current_scheduler_snapshot(home)
+        path = publish_current_airflow_dag_sources(home)
         return path, removed.as_scheduler_item() if removed else None
 
 

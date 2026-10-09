@@ -13,7 +13,7 @@ Profile 은 배포 입력이고 active deployment metadata 는 배포 결과다.
 profile 을 다시 해석하지 않고 저장된 `scheduler_backend`로 분기한다. 따라서 deploy 뒤
 profile file 이 바뀌어도 원래 backend 를 정리한다.
 
-Airflow active registration 만 Airflow scheduler snapshot 으로 발행한다. Prefect registration도
+Airflow active registration 만 standalone Airflow DAG source 로 발행한다. Prefect registration도
 metastore 에는 유지되지만 Airflow DAG parse 입력에는 들어가지 않는다.
 
 ## Deploy And Undeploy
