@@ -153,13 +153,14 @@ def deploy_prefect_job(
     *,
     identity: ScheduleIdentity,
     plan: ExecutionPlan,
+    project_timezone: str,
     artifact_id: str,
 ) -> ScheduleState:
     schedule = plan.schedule
     paused = bool(schedule.paused) if schedule is not None else False
     deployment = scheduled_job_flow.to_deployment(
         name=identity.key,
-        schedule=_prefect_schedule(schedule),
+        schedule=_prefect_schedule(schedule, project_timezone),
         paused=paused,
         parameters={
             "project_id": identity.project_id,
@@ -263,19 +264,20 @@ def _post_runtime(path: str, payload: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def _prefect_schedule(schedule):
+def _prefect_schedule(schedule, project_timezone: str):
     if schedule is None:
         return None
+    timezone = schedule.effective_timezone(project_timezone)
     if schedule.cron is not None:
         return Cron(
             schedule.cron,
-            timezone=schedule.timezone,
+            timezone=timezone,
             active=not schedule.paused,
             slug="canonical",
         )
     return Interval(
         timedelta(seconds=schedule.interval_seconds),
-        timezone=schedule.timezone,
+        timezone=timezone,
         active=not schedule.paused,
         slug="canonical",
     )

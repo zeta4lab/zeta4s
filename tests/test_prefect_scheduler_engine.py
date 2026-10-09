@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import patch
 from uuid import UUID
 
+from prefect.deployments.runner import create_deployment_schedule_create
 from prefect.exceptions import ObjectNotFound
 
 from zeta4s.prefect import ScheduleIdentity, ScheduleState
@@ -68,6 +69,18 @@ def _plan():
                         "timeout": {"seconds": 9},
                     },
                 ],
+            }
+        )
+    )
+
+
+def _schedule_plan(schedule: dict):
+    return build_step_graph_execution_plan(
+        StepGraphJob.model_validate(
+            {
+                "job_id": "tz_job",
+                "schedule": schedule,
+                "steps": [{"step_id": "start", "type": "noop"}],
             }
         )
     )
@@ -184,12 +197,14 @@ class PrefectDeploymentTest(unittest.TestCase):
             state = deploy_prefect_job(
                 identity=identity,
                 plan=_plan(),
+                project_timezone="UTC",
                 artifact_id="sha256:test-artifact",
             )
 
         kwargs = to_deployment.call_args.kwargs
         self.assertEqual(kwargs["name"], identity.key)
         self.assertEqual(kwargs["schedule"].cron, "0 2 * * *")
+        self.assertEqual(kwargs["schedule"].timezone, "Asia/Seoul")
         self.assertEqual(kwargs["parameters"]["project_id"], "retail")
         self.assertEqual(kwargs["parameters"]["artifact_id"], "sha256:test-artifact")
         self.assertEqual(
@@ -197,6 +212,32 @@ class PrefectDeploymentTest(unittest.TestCase):
             ["start", "work"],
         )
         self.assertEqual(state, ScheduleState(identity, str(deployment.apply()), False))
+
+    def test_schedule_timezone_falls_back_to_project_timezone(self) -> None:
+        identity = ScheduleIdentity("retail", "tz_job", "prod")
+        deployment = SimpleNamespace(apply=lambda: "deployment-tz")
+        cases = [
+            ({"cron": "0 2 * * *"}, "Asia/Seoul", "Asia/Seoul"),
+            ({"cron": "0 2 * * *", "timezone": "Europe/Berlin"}, "Asia/Seoul", "Europe/Berlin"),
+            ({"interval_seconds": 300}, "America/New_York", "America/New_York"),
+            ({"interval_seconds": 300, "timezone": "UTC"}, "America/New_York", "UTC"),
+        ]
+        for schedule, project_timezone, expected in cases:
+            with self.subTest(schedule=schedule, project_timezone=project_timezone):
+                with patch(
+                    "zeta4s.prefect.prefect_engine.scheduled_job_flow.to_deployment",
+                    return_value=deployment,
+                ) as to_deployment:
+                    deploy_prefect_job(
+                        identity=identity,
+                        plan=_schedule_plan(schedule),
+                        project_timezone=project_timezone,
+                        artifact_id="sha256:test-artifact",
+                    )
+                prefect_schedule = to_deployment.call_args.kwargs["schedule"]
+                self.assertEqual(prefect_schedule.timezone, expected)
+                # Prefect 가 deployment schedule payload 로 바꿀 때도 timezone 이 유지되는지 본다.
+                self.assertEqual(create_deployment_schedule_create(prefect_schedule).schedule.timezone, expected)
 
     def test_deploy_prefect_job_creates_manual_deployment_without_schedule(self) -> None:
         identity = ScheduleIdentity("retail", "manual_job", "prod")
@@ -209,6 +250,7 @@ class PrefectDeploymentTest(unittest.TestCase):
             state = deploy_prefect_job(
                 identity=identity,
                 plan=_manual_plan(),
+                project_timezone="UTC",
                 artifact_id="sha256:test-artifact",
             )
 

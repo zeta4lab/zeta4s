@@ -176,7 +176,9 @@ schedule:
 ```
 
 - `cron` 과 `interval_seconds` 는 정확히 하나만 선언한다.
-- `timezone` 은 IANA timezone 이름이며 암묵적으로 profile/project 값에서 상속하지 않는다.
+- `timezone` 은 선택 IANA timezone 이름이다. 생략하면 project `timezone` 을 쓰고 profile 값은 보지
+  않는다. 실효 timezone 은 `ScheduleConfig.effective_timezone` 하나로 결정하며 Airflow 는 DAG
+  `start_date` 의 tzinfo 로, Prefect 는 deployment schedule 의 `timezone` 으로 projection 한다.
 - identity 는 `project_id`, `job_id`, `profile` 조합이다.
 - Schedule deployment 는 project 의 `z4s api deploy` 에 포함된다.
 
