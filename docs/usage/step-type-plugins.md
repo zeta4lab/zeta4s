@@ -22,15 +22,16 @@ acme = "acme_zeta_steps:descriptors"
 # acme_zeta_steps/__init__.py
 from zeta4s.project.step_graph import StepTypeDescriptor
 
+
 def descriptors():
     return [
         StepTypeDescriptor(
             type="acme.echo",
-            pool_stage="transform",           # PROJECT_POOL_STAGES 중 하나, 또는 None
+            pool_stage="transform",  # PROJECT_POOL_STAGES 중 하나, 또는 None
             schema_validator=_validate_echo,  # (step) -> None, 위반 시 raise
             runtime_callable="acme_zeta_steps.runtime:run_echo",  # "module:func" 지연 해석
-            payload_builder=_echo_payload,    # (project, plan, step, common) -> dict
-            connection_id_fields=(),          # StepGraphStep 의 connection id 필드명
+            payload_builder=_echo_payload,  # (project, plan, step, common) -> dict
+            connection_id_fields=(),  # StepGraphStep 의 connection id 필드명
         ),
     ]
 ```
