@@ -119,7 +119,6 @@ def inspect_project(project_root: Path) -> dict[str, Any]:
         "project": project.project_id,
         "project_id": project.project_id,
         "dags": dags,
-        "asset_graph": {"asset_producers": {}, "asset_consumers": {}},
         "graph": _project_graph_summary(project.project_id, job_graphs),
         "job_graphs": job_graphs,
     }
@@ -135,10 +134,6 @@ def _graph_edge(source: str, target: str, edge_type: str, **attrs) -> dict[str, 
     payload = {"source": source, "target": target, "type": edge_type}
     payload.update({key: value for key, value in attrs.items() if value is not None})
     return payload
-
-
-def _asset_node_id(label: str) -> str:
-    return f"asset:{label}"
 
 
 def _step_node_id(job_id: str, step_id: str) -> str:
@@ -186,8 +181,6 @@ def _step_graph_job_graph(project: ProjectContext, config_path: Path, job: StepG
         "nodes": nodes,
         "edges": edges,
         "job_edges": [],
-        "assets": [],
-        "asset_edges": [],
     }
 
 
@@ -199,20 +192,6 @@ def _project_graph_summary(project_name: str, job_graphs: list[dict[str, Any]]) 
         nodes[job_id] = _graph_node(
             job_id, "job", str(graph["job_id"]), dag_id=graph.get("dag_id"), schema=graph.get("schema")
         )
-        for asset in graph.get("assets") or []:
-            label = str(asset["label"])
-            nodes[_asset_node_id(label)] = _graph_node(
-                _asset_node_id(label), "asset", label, role=asset.get("role"), name=asset.get("name")
-            )
-        for edge in graph.get("asset_edges") or []:
-            source = str(edge["source"])
-            target = str(edge["target"])
-            if source.startswith("job:") and ":step:" in source:
-                source = job_id
-            if target.startswith("job:") and ":step:" in target:
-                target = job_id
-            if source != target:
-                edges.append(_graph_edge(source, target, str(edge["type"])))
         for edge in graph.get("job_edges") or []:
             edges.append(_graph_edge(str(edge["source"]), str(edge["target"]), str(edge["type"])))
     return {
