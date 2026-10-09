@@ -46,8 +46,7 @@ Metastore backend 사이의 metadata migration 과 dual-write 는 제공하지 �
 | Control plane | deploy, registration, run 상태, report 처럼 실행을 통제하고 추적하는 영역. |
 | Runtime data backend | `stage`, `dbt.run`, `<db>.sql`, `write` step 이 실제 업무 table 을 읽고 쓰는 DB 또는 target system. |
 | Data plane | Runtime data backend 에 저장되는 업무 데이터 영역. |
-| Artifact storage | project bundle, 압축 해제된 artifact cache, Airflow standalone DAG source, scheduler snapshot 을 저장하는 파일/object 저장소. |
-| Scheduler snapshot | Airflow active registration 목록을 atomic publish 한 read-only 배포 상태 파일. |
+| Artifact storage | project bundle, 압축 해제된 artifact cache, Airflow standalone DAG source 를 저장하는 파일/object 저장소. |
 | Source of truth | 충돌이 있을 때 최종 기준으로 삼는 저장소. Deploy metadata 의 source of truth 는 metastore 다. |
 | Active deployment | 특정 project 에 대해 실행 기준으로 선택된 artifact registration. |
 | Step output binding | step 의 논리 output 이름과 실제 artifact/object/table 위치를 연결한 metadata. |
@@ -55,7 +54,7 @@ Metastore backend 사이의 metadata migration 과 dual-write 는 제공하지 �
 | Metastore adapter | metastore 구현체별 DDL, transaction, query 차이를 감추는 adapter. |
 | Metastore repository | deploy, run, step state/event/checkpoint/output binding 같은 zeta4s metadata 를 읽고 쓰는 port. |
 | Transactional write | 여러 metadata 변경이 모두 성공하거나 모두 실패해야 하는 저장 방식. 중간 상태가 active deployment 로 노출되면 안 된다. |
-| Atomic publish | scheduler snapshot 파일을 쓰는 중간 상태 없이 한 번에 교체하는 방식. Scheduler 는 완성된 이전 snapshot 또는 새 snapshot 만 읽어야 한다. |
+| Atomic publish | DAG source 파일을 쓰는 중간 상태 없이 한 번에 교체하는 방식. Scheduler 는 완성된 이전 source 또는 새 source 만 읽어야 한다. |
 | Profile | project step 이 사용하는 외부 connection 과 환경 값을 담는 사용자별 실행 설정. Metastore connection 과 scheduler pool resource 를 포함하지 않는다. |
 
 ## 정규 실행 모델
@@ -391,7 +390,6 @@ GET  /api/v1/platform/status
 - metastore backend
 - bootstrap status
 - schema status
-- scheduler snapshot status
 
 ## Data Plane 금지사항
 
@@ -543,7 +541,6 @@ Metastore 는 deploy metadata 의 source of truth 다. Airflow scheduler parse �
 z4s api deploy
   -> metastore transaction
   -> artifact storage write
-  -> scheduler snapshot publish
   -> Airflow standalone DAG source publish
 
 Airflow scheduler
@@ -552,12 +549,12 @@ Airflow scheduler
 ```
 
 Standalone DAG source 는 parse 에 필요한 값을 source 안에 담으므로 DB/API 장애가 DAG parse 실패로
-전파되지 않는다. Scheduler snapshot 과 DAG source 는 atomic publish 한다.
+전파되지 않는다. DAG source 는 atomic publish 한다.
 
 deploy 가 선택한 실제 backend 는 project 의 active deployment metadata 에
 `scheduler_backend` 로 기록한다. 이후 local profile 의 scheduler 값이 바뀌어도 undeploy 는
-이 metadata 의 backend 를 사용한다. Scheduler snapshot 과 DAG source 는 Airflow active registration
-만 담는다. Snapshot 항목 형태는 `DeploymentRegistration.as_scheduler_item()` 이 정본이다.
+이 metadata 의 backend 를 사용한다. DAG source 는 Airflow active registration 만 담는다. DAG source 를
+만드는 registration 항목 형태는 `DeploymentRegistration.as_scheduler_item()` 이 정본이다.
 
 ## 제약
 

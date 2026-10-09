@@ -2334,7 +2334,6 @@ def create_app() -> FastAPI:
                 "metastore": {"type": metastore_type, "database": database},
                 "bootstrap_status": "not_ready",
                 "schema_status": "error",
-                "scheduler_snapshot_status": "unknown",
                 "issues": [{"code": "Z4S_PLATFORM_STATUS_001", "severity": "error", "message": str(e)}],
             }
         schema_status = str(schema.get("status") or "unknown")
@@ -2344,7 +2343,6 @@ def create_app() -> FastAPI:
             "metastore": {"type": metastore_type, "database": database},
             "bootstrap_status": bootstrap_status,
             "schema_status": schema_status,
-            "scheduler_snapshot_status": "unknown",
             "schema": schema,
             "issues": [],
         }
@@ -2792,7 +2790,7 @@ def create_app() -> FastAPI:
                 project_root=project_root,
                 profile_id=request.profile_id,
             )
-            registered_path = upsert_project_registration(
+            airflow_dags_path = upsert_project_registration(
                 project_id=plan["project_id"],
                 artifact_id=artifact_id,
                 profile_id=request.profile_id,
@@ -2814,7 +2812,7 @@ def create_app() -> FastAPI:
                         "artifact_id": artifact_id,
                         "scheduler_backend": "prefect",
                         "deployment_count": len(deployments),
-                        "registered": str(registered_path),
+                        "airflow_dags_dir": str(airflow_dags_path),
                     },
                     steps=_deploy_steps_with_remaining(
                         [
@@ -2837,7 +2835,7 @@ def create_app() -> FastAPI:
                         ]
                     ),
                     artifact_id=artifact_id,
-                    registered=str(registered_path),
+                    airflow_dags_dir=str(airflow_dags_path),
                     checks={
                         "project_check": project_check,
                         "profile_check": profile_check,
@@ -2847,7 +2845,7 @@ def create_app() -> FastAPI:
                 )
             )
 
-        registered_path = upsert_project_registration(
+        airflow_dags_path = upsert_project_registration(
             project_id=plan["project_id"],
             artifact_id=artifact_id,
             profile_id=request.profile_id,
@@ -2856,7 +2854,7 @@ def create_app() -> FastAPI:
         )
         _progress_step(
             "artifact_register",
-            summary={"artifact_id": artifact_id, "registered": str(registered_path), **backend_registry},
+            summary={"artifact_id": artifact_id, "airflow_dags_dir": str(airflow_dags_path), **backend_registry},
         )
         _progress_step("scheduler_deploy", summary={"dag_count": len(plan["dags"])})
         expected_dag_ids = [str(dag["dag_id"]) for dag in plan["dags"]]
@@ -2892,7 +2890,7 @@ def create_app() -> FastAPI:
                     summary={
                         "artifact_id": artifact_id,
                         "dag_count": len(plan["dags"]),
-                        "registered": str(registered_path),
+                        "airflow_dags_dir": str(airflow_dags_path),
                         **dag_discovery,
                     },
                     steps=_deploy_steps_with_remaining(
@@ -2917,7 +2915,7 @@ def create_app() -> FastAPI:
                     ),
                     issues=[issue],
                     artifact_id=artifact_id,
-                    registered=str(registered_path),
+                    airflow_dags_dir=str(airflow_dags_path),
                     checks={
                         "project_check": project_check,
                         "profile_check": profile_check,
@@ -2944,7 +2942,7 @@ def create_app() -> FastAPI:
                     summary={
                         "artifact_id": artifact_id,
                         "dag_count": len(plan["dags"]),
-                        "registered": str(registered_path),
+                        "airflow_dags_dir": str(airflow_dags_path),
                         **dag_unpause,
                     },
                     steps=_deploy_steps_with_remaining(
@@ -2969,7 +2967,7 @@ def create_app() -> FastAPI:
                     ),
                     issues=[issue],
                     artifact_id=artifact_id,
-                    registered=str(registered_path),
+                    airflow_dags_dir=str(airflow_dags_path),
                     checks={
                         "project_check": project_check,
                         "profile_check": profile_check,
@@ -2987,7 +2985,7 @@ def create_app() -> FastAPI:
                 summary={
                     "artifact_id": artifact_id,
                     "dag_count": len(plan["dags"]),
-                    "registered": str(registered_path),
+                    "airflow_dags_dir": str(airflow_dags_path),
                     **dag_discovery,
                 },
                 steps=[
@@ -3007,7 +3005,7 @@ def create_app() -> FastAPI:
                     _step("dag_unpause", summary=dag_unpause),
                 ],
                 artifact_id=artifact_id,
-                registered=str(registered_path),
+                airflow_dags_dir=str(airflow_dags_path),
                 checks={"project_check": project_check, "profile_check": profile_check, "dbt_validate": dbt_validate},
                 dag_discovery=dag_discovery,
                 dag_unpause=dag_unpause,
@@ -3143,7 +3141,7 @@ def create_app() -> FastAPI:
                 job_count += 1
                 if delete_prefect_job(ScheduleIdentity(project, job_id, profile_id)):
                     deleted += 1
-            registered_path, removed = remove_project_registration(project)
+            airflow_dags_path, removed = remove_project_registration(project)
             cleanup_summary = {
                 "scheduler_backend": "prefect",
                 "job_count": job_count,
@@ -3164,7 +3162,7 @@ def create_app() -> FastAPI:
                             _step("registration_remove", summary={"removed": bool(removed)}),
                         ]
                     ),
-                    registered=str(registered_path),
+                    airflow_dags_dir=str(airflow_dags_path),
                     removed_registration=removed,
                 )
             )
@@ -3291,7 +3289,7 @@ def create_app() -> FastAPI:
                     dag_delete=delete_result,
                 )
             )
-        registered_path, removed = remove_project_registration(project)
+        airflow_dags_path, removed = remove_project_registration(project)
         deleted_dags = delete_result.get("deleted_dags", []) if isinstance(delete_result, dict) else []
         artifact_id = str(removed.get("artifact_id")) if removed and removed.get("artifact_id") else None
         report = _emit_operation_report(
@@ -3311,7 +3309,7 @@ def create_app() -> FastAPI:
                     _step("scheduler_cleanup", summary=delete_result),
                     _step("registration_remove", summary={"removed": bool(removed)}),
                 ],
-                registered=str(registered_path),
+                airflow_dags_dir=str(airflow_dags_path),
                 removed_registration=removed,
                 dag_ids=dag_ids,
                 dag_pause=dag_pause,

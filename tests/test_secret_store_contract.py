@@ -1067,7 +1067,6 @@ class SecretStoreContractTest(unittest.TestCase):
                 "metastore": {"type": "clickhouse", "database": "zeta4s_metastore"},
                 "bootstrap_status": "ready",
                 "schema_status": "ok",
-                "scheduler_snapshot_status": "unknown",
                 "issues": [],
             }
 

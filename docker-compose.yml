@@ -294,7 +294,7 @@ services:
       - -c
       - |
         set -e
-        mkdir -p /var/lib/zeta4s/artifacts /var/lib/zeta4s/registered /var/lib/zeta4s/runs
+        mkdir -p /var/lib/zeta4s/artifacts /var/lib/zeta4s/runs
         chown -R "${ZETA4S_RUNTIME_UID:-50000}:0" /var/lib/zeta4s
         chmod -R ug+rwX /var/lib/zeta4s
         # keyring 은 runtime state volume 밖이다. 같은 곳에 두면 state volume 을 받는
