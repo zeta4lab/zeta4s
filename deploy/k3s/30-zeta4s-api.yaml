@@ -58,6 +58,21 @@ spec:
               value: http://airflow-apiserver:8080
             - name: PREFECT_API_URL
               value: http://prefect-server:4200/api
+            # scheduler 실행 rowset 은 Iceberg REST catalog 에 저장된다. bootstrap 이 이
+            # catalog 에 닿는지 검사한다. catalog 와 그 뒤의 object storage 는 이 manifest 가
+            # 배포하지 않는 외부 서비스다 — 운영 환경의 catalog 주소와 warehouse 이름으로
+            # 바꾼다.
+            - name: ZETA4S_ICEBERG_CATALOG_URI
+              value: http://lakekeeper:8181/catalog
+            - name: ZETA4S_ICEBERG_WAREHOUSE
+              value: warehouse
+            # catalog 가 인증을 요구할 때만 쓰는 선택 항목이다. 값이 없으면 비운다.
+            - name: ZETA4S_ICEBERG_CATALOG_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: zeta4s-external-credentials
+                  key: ZETA4S_ICEBERG_CATALOG_TOKEN
+                  optional: true
             # generated DAG 가 os.environ 으로 읽는 것이 코드 계약이므로 env 로 준다.
             - name: ZETA4S_RUNTIME_INTERNAL_TOKEN
               valueFrom:
