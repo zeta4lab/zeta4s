@@ -101,13 +101,34 @@ workload 이름과 container 이름은 배포 방식마다 다르므로 patch �
 |---|---|
 | `zeta4s-airflow-dags` PVC를 `/opt/airflow/dags`에 mount | Airflow가 생성된 DAG를 읽는 유일한 공유 지점 |
 | `ZETA4S_API_INTERNAL_URL`, `ZETA4S_RUNTIME_INTERNAL_TOKEN` | generated DAG source가 `os.environ`으로 읽는 코드 계약 |
-| `zeta4s.io/runtime: scheduler` label | NetworkPolicy가 이 label로 egress를 연다 |
+| `zeta4s.io/runtime: scheduler` label | `zeta4s-api`의 ingress 정책이 발신자를 식별한다 |
 
 **이 배선이 없으면 `z4s api deploy`가 DAG discovery 단계에서 timeout된다.** Airflow가
 generated DAG를 볼 수 없기 때문이다.
 
 scheduler를 다른 namespace에 두면 그 namespace에 `zeta4s.io/scheduler: "true"` label을
-붙이고, 그쪽에도 `zeta4s-api:8088`로 나가는 egress 정책을 둔다.
+붙인다. `zeta4s-api`의 ingress가 그 namespace를 발신자로 인정한다.
+
+**scheduler Pod의 egress는 zeta4s가 정하지 않는다.** `40-networkpolicy.yaml`의 default
+deny는 zeta4s 소유 Pod만 덮는다. Airflow가 자기 metastore로, Prefect worker가
+`prefect-server`로 나가는 경로는 그 배포가 아는 것이고 zeta4s는 모른다. NetworkPolicy는
+Pod를 selector로 고르는 순간 그 방향을 화이트리스트로 바꾸므로, zeta4s가 scheduler에
+egress 정책을 씌우면 열어 준 두 대상 밖이 전부 닫힌다.
+
+namespace 전체에 default deny를 두는 운영 정책이라면 그 정책과 함께 engine이 필요로 하는
+egress를 열고, 거기에 `zeta4s-api:8088`을 포함한다. zeta4s가 요구하는 것은 그 한 줄뿐이다.
+
+```yaml
+# 운영자가 자기 default deny 와 함께 두는 정책의 zeta4s 관련 부분
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: zeta4s-api
+      ports:
+        - protocol: TCP
+          port: 8088
+```
 
 scheduler Pod는 master keyring과 외부 자격증명 Secret을 받지 않는다. manifest 검사가
 이를 강제하며, patch 파일도 같은 검사를 받는다.

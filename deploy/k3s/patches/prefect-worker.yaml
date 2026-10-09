@@ -11,6 +11,9 @@ spec:
   template:
     metadata:
       labels:
+        # zeta4s-api 의 ingress 정책이 이 label 로 발신자를 식별한다. egress 를 여는
+        # 표식이 아니다 — worker 가 prefect-server 로 나가는 경로는 Prefect 배포가
+        # 소유한다.
         zeta4s.io/runtime: scheduler
     spec:
       containers:

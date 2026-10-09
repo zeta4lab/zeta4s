@@ -1,14 +1,20 @@
-# default deny 로 시작해 필요한 것만 연다.
+# zeta4s 는 자기 배포 단위만 덮는다.
 #
-# scheduler(Airflow, Prefect worker) 는 이 namespace 안에 둘 수도, 밖에 둘 수도 있다.
-# 어느 쪽이든 다음 두 가지가 함께 있어야 internal API 호출이 성립한다.
+# default deny 를 namespace 전체(`podSelector: {}`)에 걸면 zeta4s 가 배포하지 않는
+# workload — Airflow, Prefect — 의 egress 까지 이 정책이 결정한다. 그 workload 가
+# 무엇에 나가야 하는지는 그 배포가 알고 zeta4s 는 모른다. 반쯤 아는 채로 막으면
+# scheduler 는 자기 backend 에 닿지 못한 채 조용히 멈춘다.
 #
-#   1. zeta4s-api 로 들어오는 ingress 허용
-#   2. scheduler Pod 에서 나가는 egress 허용 (default deny 가 Egress 에도 걸린다)
+# NetworkPolicy 는 한 Pod 를 selector 로 고르는 순간 그 방향을 화이트리스트로 바꾼다.
+# 그래서 "scheduler 에게 zeta4s-api 를 열어 준다" 는 정책은 실제로는 "scheduler 의
+# 나머지 egress 를 모두 닫는다" 가 된다. zeta4s 는 scheduler Pod 를 egress 정책의
+# selector 로 삼지 않는다.
 #
-# 안에 두는 경우 Pod 에 `zeta4s.io/runtime: scheduler` label 을 붙인다.
-# 밖에 두는 경우 그 namespace 에 `zeta4s.io/scheduler: "true"` label 을 붙이고
-# 그쪽 namespace 에도 egress 정책을 둔다.
+# scheduler 가 internal API 로 들어오는 것은 ingress 쪽에서 label 로 식별한다.
+# `zeta4s.io/runtime: scheduler` 는 그 식별용 표식이며 egress 를 열지 않는다.
+# scheduler Pod 의 egress 는 그 배포가 소유한다 — namespace 전체 default deny 를
+# 두려면 engine 이 필요로 하는 egress 와 `zeta4s-api:8088` 을 함께 열어야 한다.
+# `README.md` 의 scheduler 배선 절이 그 경계를 설명한다.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -17,7 +23,10 @@ metadata:
   labels:
     app.kubernetes.io/part-of: zeta4s
 spec:
-  podSelector: {}
+  # zeta4s 소유 Pod 만 덮는다. namespace 안의 다른 workload 는 그 배포가 책임진다.
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: zeta4s
   policyTypes: ["Ingress", "Egress"]
 ---
 # scheduler runtime Pod 만 internal execution endpoint 로 들어온다.
@@ -43,40 +52,6 @@ spec:
         - namespaceSelector:
             matchLabels:
               zeta4s.io/scheduler: "true"
-      ports:
-        - protocol: TCP
-          port: 8088
----
-# 같은 namespace 에 둔 scheduler 가 zeta4s-api 로 나갈 수 있어야 한다.
-# default deny 가 Egress 에도 걸리므로 이 정책이 없으면 DAG task 가 internal API 를
-# 호출하지 못한다.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: zeta4s-scheduler-egress
-  namespace: zeta4s
-  labels:
-    app.kubernetes.io/part-of: zeta4s
-spec:
-  podSelector:
-    matchLabels:
-      zeta4s.io/runtime: scheduler
-  policyTypes: ["Egress"]
-  egress:
-    - to:
-        - namespaceSelector: {}
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-    - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: zeta4s-api
       ports:
         - protocol: TCP
           port: 8088

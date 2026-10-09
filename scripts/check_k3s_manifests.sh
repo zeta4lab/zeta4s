@@ -192,11 +192,41 @@ for source, doc in docs:
         if not rule.get("resourceNames"):
             violations.append(f"{source}: secret role does not pin resourceNames")
 
-# 8. default deny NetworkPolicy 가 있어야 한다.
+# 8. zeta4s 소유 Pod 에 default deny 가 걸려야 한다.
+ZETA4S_OWNER_LABEL = ("app.kubernetes.io/part-of", "zeta4s")
+policies = [(source, doc) for source, doc in docs if kind(doc, "NetworkPolicy")]
+
+
+def selector_labels(doc):
+    return ((doc["spec"].get("podSelector") or {}).get("matchLabels")) or {}
+
+
+def selects_only_zeta4s(doc):
+    labels = selector_labels(doc)
+    if not labels:
+        return False
+    if labels.get(ZETA4S_OWNER_LABEL[0]) == ZETA4S_OWNER_LABEL[1]:
+        return True
+    return str(labels.get("app.kubernetes.io/name", "")).startswith("zeta4s")
+
+
 if not any(
-    kind(doc, "NetworkPolicy") and doc["spec"].get("podSelector") == {} for _, doc in docs
+    selector_labels(doc).get(ZETA4S_OWNER_LABEL[0]) == ZETA4S_OWNER_LABEL[1]
+    and set(doc["spec"].get("policyTypes") or []) == {"Ingress", "Egress"}
+    for _, doc in policies
 ):
-    violations.append("no default deny NetworkPolicy")
+    violations.append("no default deny NetworkPolicy covering zeta4s-owned pods")
+
+# 9. zeta4s 는 자기가 배포하지 않는 Pod 를 selector 로 고르지 않는다.
+#
+# NetworkPolicy 는 Pod 를 고르는 순간 그 방향을 화이트리스트로 바꾼다. scheduler 를
+# 고르면 zeta4s 가 열어 준 대상 밖이 전부 닫히고, Airflow 는 자기 metastore 에,
+# Prefect worker 는 prefect-server 에 닿지 못한 채 멈춘다. 그 egress 가 무엇이어야
+# 하는지는 engine 배포가 알고 zeta4s 는 모른다.
+for source, doc in policies:
+    if not selects_only_zeta4s(doc):
+        name = doc["metadata"]["name"]
+        violations.append(f"{source}: NetworkPolicy {name} selects pods zeta4s does not deploy: {selector_labels(doc) or '{}'}")
 
 for item in violations:
     print(f"k3s manifest violation: {item}", file=sys.stderr)
@@ -209,4 +239,4 @@ if [ "$fail" -ne 0 ]; then
   exit 1
 fi
 
-echo "k3s manifest contract holds: keyring is api-only, api is non-root read-only, no ingress"
+echo "k3s manifest contract holds: keyring is api-only, api is non-root read-only, no ingress, policies cover only zeta4s pods"
