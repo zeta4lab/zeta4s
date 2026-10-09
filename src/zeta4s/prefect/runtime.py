@@ -112,10 +112,14 @@ def run_scheduled_step(
     result = LocalRunner({step_id: executor}).run_step(plan, step, context)
     if result.state == StepExecutionState.FAILED:
         raise RuntimeError(result.failure.message if result.failure else f"step failed: {step_id}")
-    return {
+    response: dict[str, Any] = {
         "status": result.state.value,
         "details": {"outputs": result.outputs},
     }
+    # generated Airflow DAG 는 이 값을 AirflowSkipException 사유로 그대로 쓴다.
+    if result.state == StepExecutionState.SKIPPED and result.skipped_reason:
+        response["reason"] = result.skipped_reason
+    return response
 
 
 def finalize_scheduled_run(
