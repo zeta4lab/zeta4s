@@ -168,9 +168,12 @@ assertion 을 나열한 script 이므로, 정확한 검사 목록은 script 자�
 
 - project check 가 dbt 실행이나 subprocess 에 의존하지 않음
 - 미지원 step type 이름과 `sources_raw` metadata 를 쓰지 않음
-- generated DAG `max_active_runs` invariant 와 runtime invariant 검사 존재
-- DAG generator 가 Airflow Asset/Dataset/outlets API 를 사용하지 않음
-- step task 바인딩이 `src/zeta4s/airflow/step_binding.py` 의 generic `core_step_operator` 로 이뤄짐
+- generated DAG source 가 `max_active_runs` 를 1 로 고정하고 Airflow Asset/Dataset/outlets API 를
+  사용하지 않음
+- generated DAG source 가 zeta4s 를 import 하지 않고 step 실행을 `zeta4s-api` internal runtime
+  endpoint 로 위임함
+- distribution module 이 airflow 를 import 하지 않음 — Airflow 가 실행하는 코드는 generated DAG
+  source 뿐임
 - runtime/release gate 가 사용자 `.venv` 에 의존하지 않음
 - runtime image/compose 가 source import path 를 사용하지 않음
 - zeta4s 가 Airflow image 를 빌드·설정하지 않고 공식 Airflow service 가 zeta4s runtime state 를
@@ -245,9 +248,10 @@ attempt에는 장애가 주입되지 않는다. 위 증거가 모두 남은 실�
 - `tests/test_scheduler_boundary_invariants.py` 의 `AirflowHeadlessInvariantTest` —
   `api/app.py` 에서 도달하는 module 의 전이 폐포를 계산해 airflow import 가 없음을
   검사한다. 부모 package 를 함께 넣는다. `zeta4s.airflow.dags` 를 import 하면 python 이
-  `zeta4s/airflow/__init__.py` 를 먼저 실행하므로, 거기서 worker 측 module 을 끌어오면
-  `api/app.py` 는 한 줄도 바뀌지 않은 채 airflow 를 import 하게 된다.
-- 같은 검사가 airflow 를 import 해도 되는 worker 측 module 목록을 못박고, `src/` 에
+  `zeta4s/airflow/__init__.py` 를 먼저 실행하므로, 거기서 airflow 를 import 하는 module 을
+  끌어오면 `api/app.py` 는 한 줄도 바뀌지 않은 채 airflow 를 import 하게 된다.
+- 같은 검사가 distribution 안에 airflow 를 import 하는 module 이 없음과 generated DAG source
+  template 이 airflow 와 Python 표준 라이브러리만 import 함을 못박고, `src/` 에
   `create_session`·`airflow.settings.Session`·airflow CLI subprocess·code 주입이 없음을
   본다.
 

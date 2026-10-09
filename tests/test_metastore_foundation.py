@@ -49,59 +49,6 @@ from zeta4s.runtime.project_metadata import (
 )
 
 
-class _FakeEmptyOperator:
-    def __init__(self, *, task_id: str, **kwargs):
-        self.task_id = task_id
-        self.kwargs = kwargs
-
-
-class _FakePythonOperator:
-    def __init__(self, *, task_id: str, python_callable=None, op_kwargs=None, **kwargs):
-        self.task_id = task_id
-        self.python_callable = python_callable
-        self.op_kwargs = op_kwargs or {}
-        self.kwargs = kwargs
-
-
-class _FakeShortCircuitOperator(_FakePythonOperator):
-    pass
-
-
-class _FakeDAG:
-    def __init__(self, *, dag_id: str, **kwargs):
-        self.dag_id = dag_id
-        self.kwargs = kwargs
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
-        return None
-
-
-def _install_airflow_stub() -> None:
-    airflow = types.ModuleType("airflow")
-    providers = types.ModuleType("airflow.providers")
-    standard = types.ModuleType("airflow.providers.standard")
-    operators = types.ModuleType("airflow.providers.standard.operators")
-    python = types.ModuleType("airflow.providers.standard.operators.python")
-    empty = types.ModuleType("airflow.providers.standard.operators.empty")
-    sdk = types.ModuleType("airflow.sdk")
-    python.PythonOperator = _FakePythonOperator
-    python.ShortCircuitOperator = _FakeShortCircuitOperator
-    empty.EmptyOperator = _FakeEmptyOperator
-    sdk.DAG = _FakeDAG
-    sdk.get_current_context = lambda: {}
-    sdk.get_parsing_context = lambda: types.SimpleNamespace(dag_id=None)
-    sys.modules.setdefault("airflow", airflow)
-    sys.modules.setdefault("airflow.sdk", sdk)
-    sys.modules.setdefault("airflow.providers", providers)
-    sys.modules.setdefault("airflow.providers.standard", standard)
-    sys.modules.setdefault("airflow.providers.standard.operators", operators)
-    sys.modules.setdefault("airflow.providers.standard.operators.python", python)
-    sys.modules.setdefault("airflow.providers.standard.operators.empty", empty)
-
-
 class MetastoreFoundationTest(unittest.TestCase):
     def test_clickhouse_bootstrap_creates_secret_table(self) -> None:
         client = _FakeClickHouseClient(rows=[])
@@ -230,27 +177,6 @@ class MetastoreFoundationTest(unittest.TestCase):
 
             data = load_scheduler_snapshot(scheduler_last_good_snapshot_path(home))
             self.assertEqual(data["registrations"][0]["project_id"], "retail")
-
-    def test_airflow_loader_uses_last_good_snapshot_when_current_snapshot_is_invalid(self) -> None:
-        _install_airflow_stub()
-        from zeta4s.airflow import dynamic_loader
-
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            home = Path(tmp_dir)
-            current_path = home / "registered" / "registered-dags.yml"
-            current_path.parent.mkdir(parents=True)
-            current_path.write_text("- invalid\n", encoding="utf-8")
-            last_good_path = scheduler_last_good_snapshot_path(home)
-            publish_scheduler_snapshot(
-                registrations=[{"project_id": "retail", "artifact_id": "sha256:abc", "dags": []}],
-                home=home,
-            )
-            current_path.write_text("- invalid\n", encoding="utf-8")
-
-            with patch.object(dynamic_loader, "LAST_GOOD_SCHEDULER_SNAPSHOT_FILE", last_good_path):
-                registrations = list(dynamic_loader._iter_registered_items(current_path))
-
-            self.assertEqual(registrations[0]["project_id"], "retail")
 
     def test_clickhouse_registration_reads_latest_project_state_by_revision(self) -> None:
         client = _FakeClickHouseClient(

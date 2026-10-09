@@ -34,7 +34,6 @@ class ProjectLayoutContractTest(unittest.TestCase):
             root = Path(tmp) / "nested_project"
             jobs_dir = root / "workflows" / "jobs"
             jobs_dir.mkdir(parents=True)
-            (root / "assets").mkdir(parents=True)
             (root / "dbt").mkdir(parents=True)
             (root / "project.yml").write_text(
                 yaml.safe_dump(
@@ -43,7 +42,6 @@ class ProjectLayoutContractTest(unittest.TestCase):
                         "timezone": "Asia/Seoul",
                         "paths": {
                             "jobs": "workflows/jobs",
-                            "assets": "assets",
                             "dbt": "dbt",
                         },
                     },
@@ -80,7 +78,6 @@ class ProjectLayoutContractTest(unittest.TestCase):
             root = Path(tmp) / "nested_project"
             jobs_dir = root / "workflows" / "jobs"
             jobs_dir.mkdir(parents=True)
-            (root / "assets").mkdir(parents=True)
             (root / "dbt").mkdir(parents=True)
             (root / "project.yaml").write_text(
                 yaml.safe_dump(
@@ -89,7 +86,6 @@ class ProjectLayoutContractTest(unittest.TestCase):
                         "timezone": "Asia/Seoul",
                         "paths": {
                             "jobs": "workflows/jobs",
-                            "assets": "assets",
                             "dbt": "dbt",
                         },
                     },
@@ -135,6 +131,25 @@ class ProjectLayoutContractTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "project.yml paths must be a mapping"):
                 load_project_context(root)
 
+    def test_project_paths_reject_unsupported_keys(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp) / "extra_paths"
+            root.mkdir()
+            (root / "project.yml").write_text(
+                yaml.safe_dump(
+                    {
+                        "project_id": "extra_paths",
+                        "timezone": "Asia/Seoul",
+                        "paths": {"jobs": "jobs", "assets": "assets", "dbt": "dbt"},
+                    },
+                    sort_keys=False,
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "project.yml paths has unsupported keys: assets"):
+                load_project_context(root)
+
     def test_project_manifest_requires_project_id(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp) / "invalid_name_project"
@@ -144,7 +159,7 @@ class ProjectLayoutContractTest(unittest.TestCase):
                     {
                         "name": "invalid_name_project",
                         "timezone": "Asia/Seoul",
-                        "paths": {"jobs": "jobs", "assets": "assets", "dbt": "dbt"},
+                        "paths": {"jobs": "jobs", "dbt": "dbt"},
                     },
                     sort_keys=False,
                 ),
@@ -165,7 +180,7 @@ class ProjectLayoutContractTest(unittest.TestCase):
                         "name": "invalid_extra_project",
                         "version": "0.1.0",
                         "timezone": "Asia/Seoul",
-                        "paths": {"jobs": "jobs", "assets": "assets", "dbt": "dbt"},
+                        "paths": {"jobs": "jobs", "dbt": "dbt"},
                     },
                     sort_keys=False,
                 ),

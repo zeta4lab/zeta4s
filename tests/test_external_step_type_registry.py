@@ -141,7 +141,6 @@ def _project() -> ProjectContext:
         project_id="external_test",
         root=root,
         jobs_dir=root / "jobs",
-        assets_dir=root / "assets",
         dbt_dir=root / "dbt",
         timezone="Asia/Seoul",
     )

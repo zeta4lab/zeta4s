@@ -26,10 +26,6 @@ endpoint 안에서 core executor 가 수행한다.
 - `src/zeta4s/prefect/prefect_engine.py`: Prefect deployment 와 generic step task projection
 - `src/zeta4s/runtime/*`: 실제 runtime implementation
 
-`src/zeta4s/airflow/dag_generator.py`, `step_binding.py`, `operators.py` 는 Airflow 안에서
-zeta4s 를 import 하는 worker 측 module 로 distribution 에 남아 있다. 공식 Airflow image 는
-zeta4s 를 설치하지 않으므로 배포된 DAG 는 이 module 을 쓰지 않는다.
-
 새 built-in step type 을 추가할 때는 project registry(`_STEP_TYPE_SPECS`), core executor
 builder registry, runtime callable facade, runtime implementation 의 경계를 명시적으로
 수정한다. project registry 와 core executor registry 의 불일치는 import-time 에
@@ -79,9 +75,6 @@ type 별 adapter 클래스나 scheduler 측 registry 는 없다 — 모든 step 
 미지원 type 도 같은 generic 바인딩을 타고, 실행 시점에 core `_unsupported_executor` 가 계약
 위반을 보고한다. `when.expr` 판정은 실행 시점에 core 의미론 함수가 수행한다.
 
-배포 경로에서 쓰지 않는 worker 측 module 인 `dag_generator.py` 도 같은 원칙으로 `step_binding.py` 의
-`core_step_operator` 하나로만 바인딩한다.
-
 ## Runtime Callable Boundary
 
 Generated DAG source 의 task callable 은 internal runtime endpoint 를 호출할 뿐이다. `zeta4s-api` 가
@@ -127,7 +120,7 @@ Step type 별 YAML 계약은 이 문서에 중복해서 적지 않는다. 중복
 - `bash scripts/check_static_cli_contract.sh`
 - 목표 contract showcase 에 대해 `z4s project check`
 - generated DAG source 가 zeta4s 와 runtime implementation module 을 import 하지 않음
-- `dag_generator.py` 가 type 별 adapter registry 없이 generic `core_step_operator` 로만 바인딩함
+- generated DAG source 가 type 별 분기 없이 모든 step 을 같은 generic task 로 projection 함
 - release DAG run matrix 가 release gate 에서 통과함
 
 ## 외부 Step Type 등록 (설치 = 등록)

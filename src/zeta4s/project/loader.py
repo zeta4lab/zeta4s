@@ -18,6 +18,7 @@ from zeta4s.project.step_graph import step_graph_config_paths
 PROJECT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 PROJECT_MANIFEST_NAMES = ("project.yml",)
 PROJECT_MANIFEST_KEYS = {"project_id", "display_name", "timezone", "paths"}
+PROJECT_PATH_KEYS = {"jobs", "dbt"}
 DBT_PROJECT_TEMPLATE_TYPES = {"clickhouse", "oracle"}
 
 
@@ -26,7 +27,6 @@ class ProjectContext:
     project_id: str
     root: Path
     jobs_dir: Path
-    assets_dir: Path
     dbt_dir: Path
     timezone: str
     display_name: str | None = None
@@ -125,16 +125,13 @@ def load_project_context(project_root: Path) -> ProjectContext:
     paths = manifest.get("paths")
     if not isinstance(paths, dict):
         raise ValueError("project.yml paths must be a mapping")
-    assets_dir = (
-        project_root / _validate_relative_path(paths["assets"], "paths.assets")
-        if "assets" in paths
-        else project_root / "assets"
-    )
+    unknown_path_keys = sorted(str(key) for key in paths if key not in PROJECT_PATH_KEYS)
+    if unknown_path_keys:
+        raise ValueError("project.yml paths has unsupported keys: " + ", ".join(unknown_path_keys))
     return ProjectContext(
         project_id=validate_project_id(manifest.get("project_id")),
         root=project_root,
         jobs_dir=_project_path(project_root, paths, "jobs"),
-        assets_dir=assets_dir,
         dbt_dir=_project_path(project_root, paths, "dbt"),
         timezone=_validate_timezone(manifest.get("timezone")),
         display_name=_validate_display_name(manifest.get("display_name")),
