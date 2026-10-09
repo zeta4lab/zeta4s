@@ -98,7 +98,8 @@ z4s api run create hello hello
 z4s api run status hello hello
 ```
 
-The run reaches `state: succeeded` within a few seconds. `z4s api run tasks`, `logs`, and `summary`
+The run moves from `queued` through `running` to `succeeded` in about 15 seconds; repeat
+`z4s api run status` until it does. `z4s api run tasks`, `logs`, and `summary`
 show more detail. Once a job has more than one run, pass `--run-id <run_id>` (printed by
 `run create`) to `run status`.
 
