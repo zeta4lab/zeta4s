@@ -13,15 +13,16 @@ zeta4s 가 소유하는 것:
 - step 실행 경계: `StepExecutor` 와 step type 별 runtime 구현
 - 실행 metadata: metastore 의 run/step state/event/output binding 기록 계약
 
-zeta4s 가 소유하지 않는 것 (orchestration **기반(mechanism)**):
+zeta4s 가 소유하지 않는 것 (운영 orchestration **기반(mechanism)**):
 
 - 상시 스케줄링 데몬, cron/backfill
-- 병렬 실행, worker/process 분배
-- 장애 복구, run 재개, 취소 인프라
+- 운영 실행의 병렬성, worker/process 분배
+- 장애 복구, run 재개, 운영 run 취소
 - 운영 관측 UI
 
-orchestration 기반은 항상 외부 scheduler engine 에 위임한다. 운영 환경의 engine 은
-Airflow 와 Prefect 두 가지다.
+운영 orchestration 기반은 항상 외부 scheduler engine 에 위임한다. 운영 환경의 engine 은
+Airflow 와 Prefect 두 가지다. core 의 local runner 가 갖는 병렬 실행과 취소는 host process
+하나 안의 로컬 실행에 한정된다.
 zeta4s 는 자체 오케스트레이터를 만들지 않는다. zeta4s 의 가치는 계약과 의미론의 단일성에
 있다.
 
@@ -33,8 +34,8 @@ zeta4s 는 자체 오케스트레이터를 만들지 않는다. zeta4s 의 가�
 - Airflow 와 Prefect 는 `ExecutionPlan` 을 실행하는 adapter/projection 이다.
 - flow control 의미론의 정의는 core 가 단일 소유한다. adapter 는 core 의미론 함수를
   호출하거나, 등가가 conformance test 로 증명되는 engine native 기능으로만 매핑한다.
-- orchestration 기반은 engine 이 소유한다. core 에 스케줄링/병렬/복구/취소 기반 코드를
-  두지 않는다.
+- 운영 orchestration 기반은 engine 이 소유한다. core 에 스케줄링/복구/재개 기반 코드를
+  두지 않는다. core 의 병렬 실행과 취소는 local runner 의 host process 안에서만 동작한다.
 - core 패키지는 Airflow, Prefect 를 import 하지 않는다.
 - 하위호환성을 위해 과거 실행 경로를 유지하지 않는다.
 
@@ -54,14 +55,19 @@ Airflow 는 trigger rule 이 있고 Prefect 는 없으므로, join/when 의미�
 
 두 실행 mode 를 공식 용어로 둔다.
 
-### core-orchestrated (검증 전용)
+### core-orchestrated (로컬 실행)
 
-core 의 sequential verification Runner 가 plan 전체를 topological order 로 실행한다.
+core 의 local runner(`LocalRunner`)가 plan 전체를 실행한다. control edge 의 위상 순서를
+따르며, upstream 이 모두 끝난 step 을 thread pool 에 제출해 독립 step 을 병렬로 실행한다.
 용도는 `z4s run` 의 로컬 즉시 실행, CI 계약 테스트, 의미론의 참조 구현(reference
 implementation) 이다.
 
-이 mode 의 영구 비목표: 병렬 실행, run 재개/복구, 상시 스케줄링, 취소 인프라.
-verification Runner 는 production 상시 실행 경로가 아니며, 그 방향으로 확장하지 않는다.
+취소는 2단계다. 첫 interrupt 는 graceful stop 으로 새 step 제출을 멈추고 실행 중인 step 의
+종료를 기다린다. 두 번째 interrupt 는 hard stop 으로 process 를 즉시 종료한다. 같은
+project/job 의 로컬 중복 실행은 CLI 가 file lock 으로 막는다.
+
+이 mode 의 비목표: run 재개/복구, 상시 스케줄링. local runner 는 production 상시 실행 경로가
+아니며, 그 방향으로 확장하지 않는다.
 
 ### scheduler-projected (운영 실행)
 
@@ -82,7 +88,7 @@ eligibility 는 core 의미론 함수로 판정하며, 결과는 core reporter �
 ```text
 z4s run
   -> ExecutionPlan
-  -> core verification Runner (sequential)
+  -> core LocalRunner (위상 순서, thread pool 병렬)
   -> StepExecutor
   -> runtime callable
 ```
@@ -92,7 +98,7 @@ Airflow 실행:
 ```text
 z4s api deploy (profile scheduler=airflow)
   -> ExecutionPlan projection -> Airflow DAG/task
-  -> task 별 run_core_step -> core step 실행 경계
+  -> task 별 internal runtime endpoint (zeta4s-api) -> core step 실행 경계
   -> StepExecutor
   -> runtime callable
 ```
@@ -103,7 +109,7 @@ Prefect 실행:
 z4s api deploy (profile scheduler=prefect)
   -> canonical schedule definition + ExecutionPlan
   -> Prefect deployment projection
-  -> step 별 실행 unit -> core step 실행 경계
+  -> step 별 실행 unit -> internal runtime endpoint (zeta4s-api) -> core step 실행 경계
   -> StepExecutor
   -> runtime callable
 ```
@@ -179,12 +185,13 @@ schedule:
 | 책임 | core-orchestrated | scheduler-projected |
 |------|-------------------|---------------------|
 | control semantics 정의 | core | core |
-| step readiness 집행 | verification Runner | engine graph projection |
-| 실행 직전 eligibility 판정 | verification Runner (core 함수) | core step 경계 (core 함수) |
+| step readiness 집행 | local runner | engine graph projection |
+| 실행 직전 eligibility 판정 | local runner (core 함수) | core step 경계 (core 함수) |
 | retry/timeout policy 의미 | core contract | core contract |
-| retry/timeout 집행 | verification Runner | engine native 기능 매핑 |
-| 병렬 실행 | 없음 (영구 비목표) | engine |
-| 스케줄링/복구/취소 | 없음 (영구 비목표) | engine |
+| retry/timeout 집행 | local runner | engine native 기능 매핑 |
+| 병렬 실행 | local runner (host process thread pool) | engine |
+| 취소 | local runner (graceful/hard stop) | engine |
+| 스케줄링/복구 | 없음 (비목표) | engine |
 | step lifecycle 기록 | core reporter | core reporter |
 | terminal aggregation 계산 | core 함수 | core 함수 (adapter/reconciler 가 호출) |
 
@@ -192,8 +199,8 @@ retry/timeout 집행 owner 는 mode 당 정확히 하나다. scheduler-projected
 step 경계는 retry 를 재집행하지 않는다. engine 의 infrastructure retry(worker 장애 등)는
 canonical step attempt 와 구분해 기록한다.
 
-verification Runner 의 timeout 은 실행 환경과 무관하게 runtime callable 완료 후 elapsed time을
-판정하는 단일 참조 동작이다. 실행 중 worker 강제 회수와 취소는 제공하지 않는다. 운영 mode 의
+local runner 의 timeout 은 실행 환경과 무관하게 runtime callable 완료 후 elapsed time을
+판정하는 단일 참조 동작이다. timeout 으로 실행 중인 step 을 강제 회수하지 않는다. 운영 mode 의
 hard timeout 과 worker 회수는 scheduler native timeout 이 소유한다.
 
 ## 패키지 책임
@@ -206,13 +213,13 @@ zeta4s.core
   flow control semantics (순수 함수)
   step 실행 경계 (StepExecutor, ExecutionContext, ConnectionResolver,
                   ArtifactStore, RunReporter)
-  verification Runner (sequential, 검증 전용)
+  local runner (LocalRunner: 위상 순서 병렬 실행, graceful/hard stop)
 
 zeta4s.prefect
   Prefect deployment와 worker 실행 adapter
 
 zeta4s.airflow
-  Airflow enterprise adapter (DAG projection, run_core_step facade)
+  Airflow REST adapter 와 standalone DAG source projection
 ```
 
 - `Airflow*`, `Prefect*` 이름은 `zeta4s.core` 안에 두지 않는다.
@@ -233,7 +240,7 @@ zeta4s.airflow
 ## CLI UX
 
 ```text
-z4s run <project> <job> --profile <profile>           # 로컬 즉시 실행 (verification Runner)
+z4s run <project> <job> --profile <profile>           # 로컬 즉시 실행 (local runner)
 z4s api deploy <project> --profile <profile>          # profile 이 Airflow/Prefect 선택
 ```
 

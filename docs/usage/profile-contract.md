@@ -93,7 +93,7 @@ api_endpoint: https://prod.zeta4s.internal:8443
 token_env: PROD_ZETA4S_API_TOKEN
 ```
 
-이 값이 명시된 Profile 을 선택하여 `z4s api deploy` 나 `z4s api redeploy` 를 실행할 경우, `--api` 인자나 CLI 전역 설정(`~/.zeta4s/config.yml`)에 저장된 통신 설정보다 최우선 적용된다. 인가 토큰은 `token_env` 에 지정된 환경 변수에서 읽는다.
+이 값이 명시된 Profile 을 선택하여 `z4s api deploy` 나 `z4s api redeploy` 를 실행할 경우, `ZETA4S_API` 환경 변수나 CLI 전역 설정(`~/.zeta4s/config.yml`)의 기본 API 보다 최우선 적용된다. 두 명령은 `--api` option 을 받지 않는다. 인가 토큰은 `token_env` 에 지정된 환경 변수에서 읽는다.
 
 ## Connection Schema
 
@@ -171,7 +171,7 @@ Metastore 는 zeta4s platform 상태 저장소이며 `zeta4s-api` service config
 project profile 은 metastore endpoint, credential, namespace 를 알 필요가 없다.
 
 Profile 은 checkpoint catalog, object storage, rowset physical format도 포함하지 않는다. 이 값들은
-platform deployment 설정이며 verification Runner와 scheduler-projected runtime이 실행 mode에 따라
+platform deployment 설정이며 local runner와 scheduler-projected runtime이 실행 mode에 따라
 선택한다.
 
 ## CLI Contract
@@ -204,7 +204,7 @@ Project 검증과 API deploy 는 profile 이름을 받는다.
 
 ```bash
 z4s project check retail --profile dev
-z4s api deploy retail --profile prod --api prod
+z4s api deploy retail --profile prod
 ```
 
 CLI 는 z4s home config 에 등록된 workspace 기준으로 `retail` 을 `<workspace>/projects/retail`,

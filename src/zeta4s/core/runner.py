@@ -343,10 +343,11 @@ def _terminal_output_payload(result: RunResult) -> dict[str, dict[str, dict[str,
 
 
 class LocalRunner:
-    """Sequential reference runner for CLI and CI contract verification.
+    """Local runner for `z4s run` and CI contract verification.
 
-    Parallel execution, resume/recovery, scheduling, and cancellation are
-    intentionally outside this runner's contract.
+    Steps run in topological order on a thread pool. The first interrupt stops
+    submitting new steps and waits for running ones; the second exits hard.
+    Resume/recovery and scheduling are outside this runner's contract.
     """
 
     def __init__(self, executors: dict[str, StepExecutor]):

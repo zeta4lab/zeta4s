@@ -23,7 +23,7 @@ step 이 가진다.
 
 ```yaml
 steps:
-  - id: extract_orders
+  - step_id: extract_orders
     type: oracle.extract
     conn: oracle_source
     source:
@@ -38,7 +38,7 @@ steps:
 
 ```yaml
 steps:
-  - id: stage_orders
+  - step_id: stage_orders
     type: clickhouse.stage
     conn: analytics_clickhouse
     depends_on:
@@ -74,7 +74,7 @@ output:
 
 공통 필수 field:
 
-- `id`
+- `step_id`
 - `type`
 - `conn`
 - `source`
@@ -91,6 +91,8 @@ output:
 `elasticsearch.extract` source 필수 field:
 
 - `source.kind`: `search`
+- `source.index` 또는 `source.index_template`
+- `source.fields`: 1개 이상
 
 ## 선택 field
 
@@ -124,11 +126,8 @@ output:
 
 `elasticsearch.extract` source 선택 field:
 
-- `source.index`
-- `source.index_template`
 - `source.index_timezone`
 - `source.query`
-- `source.fields`
 - `source.sort`
 - `source.batch_size`
 - `source.track_total_hits`
@@ -171,9 +170,8 @@ output:
 
 `oracle.extract` 와 `clickhouse.extract` 의 DB table source 는 `source.table` 하나로 쓴다.
 
-DB table 이름은 항상 `schema.table` 형식이다. ClickHouse 에서는 database 이름을 schema 위치에 쓴다.
-현재 계약의 `schema.table` 단일 문자열 표기에서는 quoted identifier 를 표현하지 않는다. 예시는
-lowercase 로 쓴다.
+DB table 이름은 `table` 또는 `schema.table` 형식이다. ClickHouse 에서는 database 이름을 schema 위치에
+쓴다. 현재 계약의 단일 문자열 표기에서는 quoted identifier 를 표현하지 않는다. 예시는 lowercase 로 쓴다.
 
 ```yaml
 source:
@@ -188,35 +186,16 @@ source reader 정책이며, ClickHouse extract 에는 대응 field 를 두지 �
 
 ## Project timezone
 
-`project.yml` 의 `timezone` 은 extract 시간 해석의 기준 timezone 이다.
+`project.yml` 의 `timezone` 은 project 의 business timezone 이다([Project Contract](../project-contract.md)).
+extract runtime 은 이 값으로 `params` 를 재해석하지 않는다.
 
-```yaml
-timezone: Asia/Seoul
-```
-
-zeta4s 는 이 값을 Airflow DAG timezone 에 적용하고, runtime 에서 timezone 없는 datetime 입력을
-해석할 때 사용한다.
-
-사용자가 timezone 없는 datetime 문자열을 입력하면 project timezone 의 local time 으로 해석한다.
-Metadata 저장과 DB 비교용 instant 는 UTC 로 정규화한다.
-
-허용하는 local datetime 입력:
-
-- `YYYY-MM-DD HH:mm`
-- `YYYY-MM-DD HH:mm:ss`
-- `YYYY-MM-DDTHH:mm:ss`
-- ISO-8601 offset 포함 문자열
-
-예를 들어 project timezone 이 `Asia/Seoul` 이면 다음 입력은 KST local time 으로 해석한다.
+`params` 값은 작성한 그대로 source 의 bind 값으로 전달된다. timezone 없는 datetime 문자열을 어떤
+timezone 으로 해석할지는 source DB session 과 SQL 이 정한다.
 
 ```yaml
 params:
   window_start: "2026-01-01 00:00"
   window_end: "2026-01-02 00:00"
-```
-
-```text
-2026-01-01 00:00 KST = 2025-12-31T15:00:00Z
 ```
 
 ## Watermark and time window
@@ -264,7 +243,7 @@ time_window:
 동작:
 
 - runtime 이 저장된 마지막 watermark 를 읽지 않는다.
-- runtime 이 zeta4s run context 에서 `window_end` 를 결정한다.
+- runtime 이 아래 규칙으로 `window_end` 를 결정한다.
 - runtime 이 `window_end` 에서 `lookback` 을 빼 `window_start` 를 계산한다.
 - `source.kind: table` 또는 `source.kind: search` 에서 runtime 이 source predicate 로 변환한다.
 - extract history 는 남길 수 있지만, 마지막 watermark state 는 갱신하지 않는다.
@@ -272,20 +251,16 @@ time_window:
 계산 방식:
 
 ```text
-window_end = zeta4s normalized run window end
+window_end = 아래 규칙으로 정한 상한
 window_start = window_end - lookback
 ```
 
 `window_end` 결정 규칙:
 
-1. Run config 에 `window_end` 가 있으면 project timezone 기준으로 해석한 뒤 UTC instant 로 정규화한다.
-2. Scheduled run 과 backfill run 은 Airflow `data_interval_end` 를 zeta4s `window_end` 로 정규화한다.
-3. Schedule 없는 manual run 은 task start time 을 zeta4s `window_end` 로 정규화한다.
-4. Retry/rerun 은 같은 run 에서 최초 계산된 `window_end` 를 재사용한다.
-
-Airflow DAG timezone 은 project timezone 을 사용한다. Scheduled/backfill run 의
-`data_interval_end` 는 해당 DAG timezone 기준 schedule 에서 나온 값으로 보고 zeta4s `window_end` 로
-정규화한다.
+1. 기본값은 extract 실행을 시작한 시각이다. runtime process 의 현재 시각을 timezone 없이 쓴다.
+   Retry 는 새 attempt 의 시작 시각으로 다시 계산한다.
+2. `time_window.upper_bound: data_interval_end` 를 쓰면 scheduler 가 넘긴 `data_interval_end` 에서
+   timezone 정보를 떼어 쓴다. 값이 없으면 1 과 같다.
 
 예를 들어 `lookback: "30m"` 이고 zeta4s `window_end` 가 `2026-01-01T10:00:00Z` 이면 runtime 은
 최근 30분을 계산한다.
@@ -487,7 +462,7 @@ source 준비 step 이 필요하면 `depends_on` 에 명시한다.
 
 ```yaml
 steps:
-  - id: extract_orders
+  - step_id: extract_orders
     type: oracle.extract
     conn: oracle_source
     depends_on:
@@ -526,7 +501,7 @@ extract history/state 를 저장할 수 있지만, transform table 위치를 결
 
 ```yaml
 steps:
-  - id: extract_orders
+  - step_id: extract_orders
     type: oracle.extract
     conn: oracle_source
     source:
@@ -545,7 +520,7 @@ steps:
 
 ```yaml
 steps:
-  - id: extract_orders_incremental
+  - step_id: extract_orders_incremental
     type: oracle.extract
     conn: oracle_source
     source:
@@ -563,7 +538,7 @@ steps:
 
 ```yaml
 steps:
-  - id: extract_customers
+  - step_id: extract_customers
     type: oracle.extract
     conn: oracle_source
     source:
@@ -578,7 +553,7 @@ steps:
 
 ```yaml
 steps:
-  - id: extract_customers_window
+  - step_id: extract_customers_window
     type: oracle.extract
     conn: oracle_source
     source:
@@ -607,7 +582,7 @@ where updated_at >= :window_start
 
 ```yaml
 steps:
-  - id: extract_order_customer
+  - step_id: extract_order_customer
     type: oracle.extract
     conn: oracle_source
     source:
@@ -639,7 +614,7 @@ order by watermark_ts
 
 ```yaml
 steps:
-  - id: extract_events
+  - step_id: extract_events
     type: clickhouse.extract
     conn: clickhouse_source
     source:
@@ -654,7 +629,7 @@ steps:
 
 ```yaml
 steps:
-  - id: extract_events
+  - step_id: extract_events
     type: clickhouse.extract
     conn: clickhouse_source
     source:
@@ -669,14 +644,14 @@ steps:
         kind: rowset
 ```
 
-ClickHouse table source 도 `schema.table` 형식으로 쓴다. 여기서 schema 위치에는 ClickHouse
-database 이름을 쓴다.
+ClickHouse table source 도 `table` 또는 `schema.table` 형식으로 쓴다. 여기서 schema 위치에는
+ClickHouse database 이름을 쓴다.
 
 ### Elasticsearch search extract
 
 ```yaml
 steps:
-  - id: extract_products
+  - step_id: extract_products
     type: elasticsearch.extract
     conn: elasticsearch_source
     source:
@@ -707,7 +682,7 @@ steps:
 
 ```yaml
 steps:
-  - id: extract_products_window
+  - step_id: extract_products_window
     type: elasticsearch.extract
     conn: elasticsearch_source
     source:

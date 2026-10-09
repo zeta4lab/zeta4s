@@ -23,7 +23,7 @@ inline `sql` 안에 명시한다.
 
 ```yaml
 steps:
-  - id: build_order_metrics
+  - step_id: build_order_metrics
     type: clickhouse.sql
     conn: analytics_clickhouse
     depends_on:
@@ -37,7 +37,7 @@ steps:
 
 ```yaml
 steps:
-  - id: build_order_summary
+  - step_id: build_order_summary
     type: oracle.sql
     conn: oracle_mart_store
     depends_on:
@@ -51,7 +51,7 @@ steps:
 
 ```yaml
 steps:
-  - id: validate_order_summary
+  - step_id: validate_order_summary
     type: sql.check
     conn: oracle_mart_store
     depends_on:
@@ -66,7 +66,7 @@ steps:
 
 ```yaml
 steps:
-  - id: count_order_summary
+  - step_id: count_order_summary
     type: sql.scalar
     conn: oracle_mart_store
     depends_on:
@@ -91,7 +91,7 @@ when:
 
 ```yaml
 steps:
-  - id: refresh_order_audit
+  - step_id: refresh_order_audit
     type: oracle.call
     conn: oracle_mart_store
     depends_on:
@@ -162,28 +162,28 @@ outputs:
 
 ### `clickhouse.sql`
 
-- `id`
+- `step_id`
 - `type`
 - `conn`
 - `query` 또는 `sql`
 
 ### `oracle.sql`
 
-- `id`
+- `step_id`
 - `type`
 - `conn`
 - `query` 또는 `sql`
 
 ### `sql.check`
 
-- `id`
+- `step_id`
 - `type`
 - `conn`
 - `query` 또는 `sql`
 
 ### `sql.scalar`
 
-- `id`
+- `step_id`
 - `type`
 - `conn`
 - `query` 또는 `sql`
@@ -191,7 +191,7 @@ outputs:
 
 ### `oracle.call`
 
-- `id`
+- `step_id`
 - `type`
 - `conn`
 - `call`
@@ -222,17 +222,8 @@ params:
 `$context.<name>` 은 scheduler adapter가 canonical runtime context로 정규화한 값을 bind
 parameter로 전달하는 표현이다.
 
-현재 runtime context parameter:
-
-- `z4_run_id`
-- `run_id`
-- `task_id`
-- `try_number`
-- `logical_date`
-- `data_interval_start`
-- `data_interval_end`
-- `ds`
-- `ts`
+참조할 수 있는 runtime context key 는 `src/zeta4s/runtime/native.py` 의 `_runtime_context_params` 가
+정본이다. 없는 key 를 참조하면 step 이 실패한다.
 
 ## 쓰지 않는 field
 
@@ -264,12 +255,12 @@ SQL file 은 하나의 statement 또는 하나의 PL/SQL block 을 담는다. �
 
 ```yaml
 steps:
-  - id: reset_order_summary
+  - step_id: reset_order_summary
     type: clickhouse.sql
     conn: analytics_clickhouse
     query: sql/clickhouse/reset_order_summary.sql
 
-  - id: build_order_summary
+  - step_id: build_order_summary
     type: clickhouse.sql
     conn: analytics_clickhouse
     depends_on:
@@ -283,7 +274,7 @@ steps:
 
 ```yaml
 steps:
-  - id: optimize_order_summary
+  - step_id: optimize_order_summary
     type: clickhouse.sql
     conn: analytics_clickhouse
     sql: "OPTIMIZE TABLE order_summary FINAL"
@@ -315,7 +306,7 @@ DB object 이름과 조건은 SQL text 와 `params` bind parameter 로 명시한
 
 ```yaml
 steps:
-  - id: build_order_summary
+  - step_id: build_order_summary
     type: oracle.sql
     conn: oracle_mart_store
     query: sql/oracle/build_order_summary.sql
@@ -368,7 +359,9 @@ SQL 에 존재하는 placeholder 에 해당하는 parameter 만 runtime execute 
 
 ### `sql.check`, `sql.scalar`
 
-허용 시작 keyword:
+ClickHouse connection 에서는 `clickhouse.sql` 과 같은 허용 시작 keyword 를 쓴다.
+
+Oracle connection 에서의 허용 시작 keyword:
 
 - `SELECT`
 - `INSERT`
@@ -377,6 +370,9 @@ SQL 에 존재하는 placeholder 에 해당하는 parameter 만 runtime execute 
 - `MERGE`
 - `CALL`
 - `BEGIN`
+
+Oracle connection 에서는 statement 안에 `CREATE`, `DROP`, `ALTER`, `TRUNCATE`, `GRANT`, `REVOKE` token 이
+있으면 거부한다.
 
 Check/scalar 용도에서는 `SELECT` 를 사용한다. DML/PLSQL 은 런타임 parser 가 허용하더라도 계약상
 check/scalar step 의 의도와 맞지 않는다.
@@ -414,7 +410,7 @@ SQL 계열 step 은 `input` 으로 실행 순서를 만들지 않는다.
 
 ```yaml
 steps:
-  - id: stage_orders
+  - step_id: stage_orders
     type: clickhouse.stage
     conn: analytics_clickhouse
     depends_on:
@@ -422,7 +418,7 @@ steps:
     map:
       extract_orders.orders_rows: stg_orders
 
-  - id: build_order_summary
+  - step_id: build_order_summary
     type: clickhouse.sql
     conn: analytics_clickhouse
     depends_on:
@@ -482,7 +478,7 @@ Runtime result stage 는 `sql_scalar` 이다.
 
 ```yaml
 steps:
-  - id: build_customer_summary
+  - step_id: build_customer_summary
     type: clickhouse.sql
     conn: analytics_clickhouse
     depends_on:
@@ -494,7 +490,7 @@ steps:
 
 ```yaml
 steps:
-  - id: build_customer_summary
+  - step_id: build_customer_summary
     type: oracle.sql
     conn: oracle_mart_store
     depends_on:
@@ -506,7 +502,7 @@ steps:
 
 ```yaml
 steps:
-  - id: count_customers
+  - step_id: count_customers
     type: sql.scalar
     conn: oracle_mart_store
     query: sql/oracle/count_customers.sql
@@ -515,7 +511,7 @@ steps:
         kind: scalar
         type: int
 
-  - id: validate_customers
+  - step_id: validate_customers
     type: sql.check
     conn: oracle_mart_store
     when:
@@ -527,7 +523,7 @@ steps:
 
 ```yaml
 steps:
-  - id: refresh_customer_audit
+  - step_id: refresh_customer_audit
     type: oracle.call
     conn: oracle_mart_store
     call: sales_mart.refresh_customer_audit(:z4_run_id)

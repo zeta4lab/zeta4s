@@ -4,6 +4,9 @@
 생성한다. Docker build 나 Compose 기동은 직접 실행하지 않고, env 파일 생성만
 담당한다.
 
+template 위에 `ZETA4S_VERSION`, `ZETA4S_API_IMAGE`(`zeta4s-api:<version>` local tag),
+새로 생성한 `ZETA4S_RUNTIME_INTERNAL_TOKEN`, `AIRFLOW_UID`, `ZETA4S_RUNTIME_UID` 를 채운다.
+version 은 `src/zeta4s/__init__.py` 의 `__version__` 에서 읽는다.
 `AIRFLOW_UID`와 `ZETA4S_RUNTIME_UID`는 각각 `50000`으로 생성한다. 두 값은 같은 숫자여도
 서로 다른 runtime의 file ownership 계약이다.
 `ZETA4S_API_TOKEN` 은 기본적으로 비워 둔다. 비어 있으면 zeta4s-api 인증을 생략하고,
@@ -40,7 +43,10 @@ bash scripts/configure_open_env.sh --dry-run
 
 ## 다음 단계
 
+`ZETA4S_API_IMAGE` 는 local tag 이므로 Compose 기동 전에 image 를 빌드한다.
+
 ```bash
+bash scripts/build_images.sh --load
 docker compose --env-file .env --profile asset up -d
 ```
 

@@ -19,7 +19,7 @@ SQL transform 직전에 DB table 로 고정한다.
 
 ```yaml
 steps:
-  - id: stage_sales_inputs
+  - step_id: stage_sales_inputs
     type: clickhouse.stage
     conn: analytics_clickhouse
     depends_on:
@@ -38,9 +38,9 @@ map:
 ```
 
 `map` key 는 stage 가 읽을 rowset output reference 다. `map` value 는 stage 가 만들 target DB table
-이름이다. DB table 이름은 항상 `schema.table` 형식이다.
-현재 계약의 `schema.table` 단일 문자열 표기에서는 quoted identifier 를 표현하지 않는다. 예시는
-lowercase 로 쓴다.
+이름이다. DB table 이름은 `table` 또는 `schema.table` 형식이다. schema 를 생략하면 `conn` 의 기본
+schema/database 에 만든다.
+현재 계약의 단일 문자열 표기에서는 quoted identifier 를 표현하지 않는다. 예시는 lowercase 로 쓴다.
 
 `schema.table` table 이름에는 `.` 이 들어가므로, 후속 step 이 `stage_sales_inputs.mart.stg_orders`
 처럼 축약 참조를 쓸 때는 첫 번째 `.` 만 step id 와 output 이름의 구분자로 해석한다. 즉 step id 는
@@ -71,7 +71,7 @@ output 을 참조한다. SQL step 처럼 data input field 를 갖지 않는 step
 
 ## 필수 field
 
-- `id`
+- `step_id`
 - `type`
 - `conn`
 - `depends_on`
@@ -100,7 +100,8 @@ output 을 참조한다. SQL step 처럼 data input field 를 갖지 않는 step
 
 `conn` 은 stage 가 table 을 만들 runtime data backend connection 이다.
 
-DB table 이름은 `schema.table` 형식으로 쓴다. ClickHouse 에서는 database 이름을 schema 위치에 쓴다.
+DB table 이름은 `table` 또는 `schema.table` 형식으로 쓴다. ClickHouse 에서는 database 이름을 schema
+위치에 쓴다.
 
 ## 실행 종속
 
@@ -134,7 +135,7 @@ rowset 을 같은 backend 로 stage 할 때만 source-native type hint 를 보�
 
 ```yaml
 steps:
-  - id: stage_sales_inputs
+  - step_id: stage_sales_inputs
     type: clickhouse.stage
     conn: analytics_clickhouse
     depends_on:
@@ -149,7 +150,7 @@ steps:
 
 ```yaml
 steps:
-  - id: stage_sales_inputs
+  - step_id: stage_sales_inputs
     type: oracle.stage
     conn: oracle_mart_store
     depends_on:

@@ -94,7 +94,7 @@ CLI argument 는 home config 에 등록된 workspace 기준으로 해석한다.
 ```bash
 z4s project init retail
 z4s project check retail --profile dev
-z4s api deploy retail --profile prod --api prod
+z4s api deploy retail --profile prod
 ```
 
 해석:
@@ -133,7 +133,7 @@ workspace 로 간주하지 않는다. Gate 는 host 에 설치한 `z4s` CLI 로 
 
 ```bash
 z4s project check retail --profile prod
-z4s api deploy retail --profile prod --api prod
+z4s api deploy retail --profile prod
 ```
 
 Profile 은 deploy binding 이며 secret value 를 포함하지 않는다. Profile 은 `password_ref` 같은 secret

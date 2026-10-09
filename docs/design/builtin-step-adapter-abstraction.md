@@ -7,7 +7,8 @@
 validation, 실행 매핑, runtime payload, result contract 를 한 곳에서 추적 가능하게 한다.
 
 scheduler 바인딩은 type 별 코드를 요구하지 않는다. 모든 step type 은 동일한 generic task
-바인딩으로 실행되고, type 별 실행 dispatch 는 task 프로세스 안 core executor 가 수행한다.
+바인딩으로 실행되고, type 별 실행 dispatch 는 task 가 호출한 `zeta4s-api` internal runtime
+endpoint 안에서 core executor 가 수행한다.
 
 내장 `steps[].type` 구현은 다음 경계로 분리한다.
 
@@ -17,13 +18,17 @@ scheduler 바인딩은 type 별 코드를 요구하지 않는다. 모든 step ty
   field_validator membership 검증이다.
 - `src/zeta4s/core/step_executors.py`: `_BUILT_IN_STEP_EXECUTOR_BUILDERS` 가 type →
   StepExecutor builder 매핑이다. import-time 가드로 project registry type 정본과의
-  congruence 를 강제한다. Airflow·Prefect·CLI 실행 경로가 모두 `built_in_step_executor` 로
+  congruence 를 강제한다. scheduler 실행 경로(`zeta4s-api` internal runtime endpoint 의
+  `zeta4s.prefect.runtime.run_scheduled_step`)와 CLI 실행 경로가 모두 `built_in_step_executor` 로
   dispatch 한다.
-- `src/zeta4s/airflow/dag_generator.py`: DAG 생성, flow control, edge wiring
-- `src/zeta4s/airflow/step_binding.py`: type-agnostic generic task 바인딩
-  (`core_step_operator`). type 별 분기가 없다.
-- `src/zeta4s/airflow/operators.py`: Airflow callable facade (`run_core_step`)
+- `src/zeta4s/airflow/dag_source.py`: standalone Airflow DAG source 생성. 모든 step 을 같은
+  generic task 로 만들고 flow control 과 edge 를 task 설정으로 projection 한다. type 별 분기가 없다.
+- `src/zeta4s/prefect/prefect_engine.py`: Prefect deployment 와 generic step task projection
 - `src/zeta4s/runtime/*`: 실제 runtime implementation
+
+`src/zeta4s/airflow/dag_generator.py`, `step_binding.py`, `operators.py` 는 Airflow 안에서
+zeta4s 를 import 하는 worker 측 module 로 distribution 에 남아 있다. 공식 Airflow image 는
+zeta4s 를 설치하지 않으므로 배포된 DAG 는 이 module 을 쓰지 않는다.
 
 새 built-in step type 을 추가할 때는 project registry(`_STEP_TYPE_SPECS`), core executor
 builder registry, runtime callable facade, runtime implementation 의 경계를 명시적으로
@@ -52,51 +57,42 @@ step type 고유 필수 field 와 조합 규칙은 project registry 의 schema v
 구현 모듈 경계는 다음과 같다.
 
 ```text
-src/zeta4s/project/step_graph.py    # 선언 정본(_STEP_TYPE_SPECS) + schema validator
-src/zeta4s/core/step_executors.py   # 실행 매핑(_BUILT_IN_STEP_EXECUTOR_BUILDERS)
-src/zeta4s/airflow/step_binding.py  # generic task 바인딩(core_step_operator)
-src/zeta4s/airflow/dag_generator.py # DAG 생성, flow control, edge wiring
-src/zeta4s/airflow/operators.py     # run_core_step facade
+src/zeta4s/project/step_graph.py     # 선언 정본(_STEP_TYPE_SPECS) + schema validator
+src/zeta4s/core/step_executors.py    # 실행 매핑(_BUILT_IN_STEP_EXECUTOR_BUILDERS)
+src/zeta4s/airflow/dag_source.py     # standalone DAG source 생성(generic task, flow control, edge)
+src/zeta4s/prefect/prefect_engine.py # Prefect deployment 와 generic step task
+src/zeta4s/prefect/runtime.py        # zeta4s-api 안의 scheduled step 실행 facade(run_scheduled_step)
 ```
 
-`step_binding.py` 는 `StepBindingContext`, `StepGraphTaskBinding`, `single_task_binding`,
-`core_step_operator` 를 정의한다. type 별 adapter 클래스나 registry 는 없다 — 모든 step type 이
-같은 `core_step_operator` 로 바인딩된다.
+type 별 adapter 클래스나 scheduler 측 registry 는 없다 — 모든 step type 이 같은 generic task 로
+바인딩된다.
 
-## DAG Generator
+## Airflow DAG Source
 
-`dag_generator.py` 는 다음 책임만 가진다.
+`dag_source.py` 는 Airflow active registration 의 job 마다 standalone DAG source 를 만든다.
 
-- `StepGraphJob` 검증
-- `ExecutionPlan` 생성
-- DAG 생성과 invariant 검증
-- generic step 바인딩
-- flow control 적용
-- `ExecutionPlan.edges` wiring
-- terminal step success marker wiring
-
-task 생성은 `step_binding.py` 의 `core_step_operator` 에 둔다.
-
-```python
-binding = single_task_binding(core_step_operator(ctx))
-binding = _apply_step_graph_trigger_rule(binding, step)
-```
+- `ExecutionPlan` 을 읽어 step 마다 같은 generic task spec 을 만든다
+- pool, retry, delay, timeout, trigger rule 을 task 설정으로 projection 한다
+- `ExecutionPlan` 의 upstream 관계를 edge 로 wiring 한다
+- terminal step 뒤에 run finalize task 를 wiring 한다
 
 미지원 type 도 같은 generic 바인딩을 타고, 실행 시점에 core `_unsupported_executor` 가 계약
-위반을 보고한다. Flow control (`when.expr`, `join.rule`, retry, timeout) 은 바인딩 밖에서 공통
-적용한다.
+위반을 보고한다. `when.expr` 판정은 실행 시점에 core 의미론 함수가 수행한다.
+
+배포 경로에서 쓰지 않는 worker 측 module 인 `dag_generator.py` 도 같은 원칙으로 `step_binding.py` 의
+`core_step_operator` 하나로만 바인딩한다.
 
 ## Runtime Callable Boundary
 
-`zeta4s.airflow.operators` 는 facade 로 둔다. `step_binding.py` 는 `run_core_step` facade
-callable 을 참조하고, facade 함수 내부에서 `built_in_step_executor` 로 실제 executor 를 조립해
-`zeta4s.runtime.*` implementation 을 import 한다.
+Generated DAG source 의 task callable 은 internal runtime endpoint 를 호출할 뿐이다. `zeta4s-api` 가
+endpoint 안에서 `built_in_step_executor` 로 실제 executor 를 조립하고 `zeta4s.runtime.*`
+implementation 을 import 한다.
 
 이 규칙은 유지한다.
 
-- DAG parse 단계에서 `oracledb`, `duckdb`, `pyarrow`, provider client 를 import 하지 않는다.
-- runtime implementation 은 task process 에서 callable 실행 시점에 import 한다.
-- `step_binding.py` 도 parse-safe dependency 만 import 한다.
+- DAG source 는 Airflow package 와 Python 표준 라이브러리만 import 한다. `oracledb`, `duckdb`,
+  `pyarrow`, provider client 와 zeta4s module 을 import 하지 않는다.
+- runtime implementation 은 `zeta4s-api` process 에서 step 실행 시점에 import 한다.
 
 ## Result Contract
 
@@ -115,14 +111,7 @@ result 기록은 `record_success`, `result_context`, task result note 경계를 
 Step type 별 YAML 계약은 이 문서에 중복해서 적지 않는다. 중복 예시는 세부 계약 문서와 쉽게
 어긋나므로, 이 문서는 step type abstraction 의 공통 경계만 다룬다.
 
-세부 계약 문서는 다음을 기준으로 한다.
-
-- `docs/usage/step-types/extract.md`
-- `docs/usage/step-types/stage.md`
-- `docs/usage/step-types/sql.md`
-- `docs/usage/step-types/http-lookup.md`
-- `docs/usage/step-types/dbt.md`
-- `docs/usage/step-types/write.md`
+세부 계약 문서는 `docs/usage/step-types/` 를 기준으로 한다.
 
 공통 규칙은 다음이다.
 
@@ -137,7 +126,7 @@ Step type 별 YAML 계약은 이 문서에 중복해서 적지 않는다. 중복
 - `uv run python -m compileall -q src/zeta4s`
 - `bash scripts/check_static_cli_contract.sh`
 - 목표 contract showcase 에 대해 `z4s project check`
-- Airflow DAG parse 경로가 runtime implementation module 을 직접 import 하지 않음
+- generated DAG source 가 zeta4s 와 runtime implementation module 을 import 하지 않음
 - `dag_generator.py` 가 type 별 adapter registry 없이 generic `core_step_operator` 로만 바인딩함
 - release DAG run matrix 가 release gate 에서 통과함
 
@@ -161,9 +150,9 @@ zeta4s 를 쓰는 각 프로세스가 설치된 배포판을 discover 해 등록
   `RuntimeCallableStepExecutor(runtime_callable, payload_builder(...))` 를 만든다. 빌트인
   compound executor 는 core 에 그대로 남는다.
 - 등록은 검증·실행 이전의 명시 load-time 단계다(import-time side effect 없음). CLI
-  (`z4s project check`/`run`/`api deploy`), API 서버(deploy gate + runtime-step 실행), Airflow
-  (DAG parse + task), Prefect 워커가 config 검증(`StepGraphJob`) 이전에
-  `register_installed_step_types()` 를 호출한다. 빌트인 재정의 / 잘못된 pool stage / 해석 불가
+  (`z4s project check`/`run`/`api deploy`/`api redeploy`)와 API 서버(deploy gate + runtime-step
+  실행)가 config 검증(`StepGraphJob`) 이전에 `register_installed_step_types()` 를 호출한다.
+  scheduler task 는 step 실행을 API 서버에 위임하므로 Airflow·Prefect process 는 등록하지 않는다. 빌트인 재정의 / 잘못된 pool stage / 해석 불가
   `runtime_callable` / 비-iterable factory 는 로드 시점 계약 위반이다.
 
 ## 이후 확장

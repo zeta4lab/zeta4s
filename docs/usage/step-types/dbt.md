@@ -29,7 +29,7 @@ zeta4s 에서 dbt 는 DB 안의 데이터 변환을 쉽게 실행하기 위한 �
 
 ```yaml
 steps:
-  - id: build_customer_mart
+  - step_id: build_customer_mart
     type: dbt.run
     conn: analytics_clickhouse
     depends_on:
@@ -60,7 +60,7 @@ build_customer_mart.fct_order
 
 필수 field:
 
-- `id`
+- `step_id`
 - `type`
 - `conn`
 - `models[]`
@@ -80,7 +80,7 @@ build_customer_mart.fct_order
 
 ```yaml
 steps:
-  - id: test_customer_mart
+  - step_id: test_customer_mart
     type: dbt.test
     conn: analytics_clickhouse
     depends_on:
@@ -94,7 +94,7 @@ steps:
 
 필수 field:
 
-- `id`
+- `step_id`
 - `type`
 - `conn`
 - `models[]`
@@ -126,7 +126,7 @@ Project 는 여러 DB connection 을 가질 수 있다. 따라서 dbt 실행도 
 
 ```yaml
 steps:
-  - id: stage_customer_inputs
+  - step_id: stage_customer_inputs
     type: clickhouse.stage
     conn: analytics_clickhouse
     depends_on:
@@ -134,7 +134,7 @@ steps:
     map:
       extract_customers.customer_rows: customers_raw
 
-  - id: build_customer_mart
+  - step_id: build_customer_mart
     type: dbt.run
     conn: analytics_clickhouse
     depends_on:
@@ -147,7 +147,7 @@ steps:
 
 ```yaml
 steps:
-  - id: build_mixed_mart
+  - step_id: build_mixed_mart
     type: dbt.run
     conn: analytics_clickhouse
     depends_on:
@@ -158,13 +158,14 @@ steps:
 ```
 
 위 구조는 `stage_orders_clickhouse` 와 `stage_customers_oracle` 이 서로 다른 `conn` 으로 table 을 만들기
-때문에 허용하지 않는다.
+때문에 허용하지 않는다. `dbt.run` 은 stage 와 `depends_on` 으로만 연결되므로 `z4s project check` 는 이
+`conn` 일치를 검증하지 않는다. 작성자가 지킨다.
 
 Multi-conn project 에서는 다음처럼 `conn` 별로 dbt step 을 나눈다.
 
 ```yaml
 steps:
-  - id: build_clickhouse_mart
+  - step_id: build_clickhouse_mart
     type: dbt.run
     conn: clickhouse_mart
     depends_on:
@@ -173,7 +174,7 @@ steps:
       - dim_customer
       - fct_order
 
-  - id: build_oracle_mart
+  - step_id: build_oracle_mart
     type: dbt.run
     conn: oracle_mart
     depends_on:
@@ -215,7 +216,7 @@ project/
 
 ```yaml
 steps:
-  - id: build_clickhouse_mart
+  - step_id: build_clickhouse_mart
     type: dbt.run
     conn: clickhouse_mart
     models:
@@ -232,12 +233,13 @@ steps:
 
 `dbt.test` runtime result stage 는 `dbt_test` 이다.
 
-최소 metrics:
+dbt step 은 선택된 dbt node 를 dependency 순서대로 하나씩 실행하고 node 마다 result 를 남긴다. 각
+result 의 metrics 는 dbt `run_results.json` 의 node 상태에서 집계한다.
 
-- selected node count
-- success count
-- failure count
-- skipped count
+- `success_rows`
+- `failed_rows`
+- `skipped_rows`
+- `error_rows`
 
 Graph output 은 runtime result 가 아니라 `dbt.run.models[]` 에서 파생된다.
 
@@ -246,6 +248,6 @@ Graph output 은 runtime result 가 아니라 `dbt.run.models[]` 에서 파생�
 - 현재 계약에서 `selector` 는 쓰지 않는다.
 - `dbt.run.models[]` 가 실행 대상이자 graph output 목록이다.
 - `dbt.test` 는 graph output 을 만들지 않는다.
-- `dbt.run.conn` 은 input stage step 의 `conn` 과 같아야 한다.
+- `dbt.run.conn` 은 input stage step 의 `conn` 과 같아야 한다. 이 제약은 자동 검증되지 않는다.
 - dbt `sources:` YAML 생성을 필수 계약으로 두지 않는다.
 - `source`, `target`, `output`, `sql`, `query`, `call` 은 dbt step 현재 계약에서 쓰지 않는다.

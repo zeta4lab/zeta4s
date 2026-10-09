@@ -37,5 +37,6 @@ Prefect 구현 package 는 `zeta4s.prefect`다.
 - Project/profile/dbt 검증 실패는 scheduler deployment와 active registration 전에 중단한다.
 - 저장된 backend를 해석할 수 없거나 active registration이 없으면 undeploy를 닫힌 실패로
   반환한다.
-- Active run 이 남아 있으면 redeploy 를 실패시킨다.
+- Airflow undeploy 는 DAG 를 pause 하고 active run 을 종료한다. timeout 안에 종료되지 않은 run 이
+  남으면 undeploy 를 실패시키고, redeploy 도 이 undeploy 실패에서 deploy 전에 중단한다.
 - Final report 는 실패 step 이후 downstream step 을 `skipped` 로 표시한다.

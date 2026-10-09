@@ -6,8 +6,8 @@ Project artifact 는 zeta4s 의 canonical 사용자 입력이다. 현재 기준 
 - `jobs/*.yml`
 - step 이 참조하는 SQL, dbt model, project-local docs
 
-Skeleton 과 문서의 기본 확장자는 `.yml` 이다. YAML parser 는 동일한 형식의 수동 작성
-파일을 위해 `.yaml` 확장자도 허용한다.
+Skeleton 과 문서의 기본 확장자는 `.yml` 이다. 수동 작성한 job 파일과 profile 은 `.yaml` 확장자도
+허용한다. Project manifest 는 `project.yml` 이름만 인식한다.
 
 ## `project.yml`
 
@@ -24,9 +24,9 @@ paths:
   dbt: dbt
 ```
 
-`timezone` 은 project 의 business timezone 이며 필수 IANA timezone 값이다. zeta4s 는 이 값을 Airflow
-DAG timezone 과 runtime 시간 해석 기준으로 사용한다. Metadata 저장과 DB 비교용 instant 는 UTC 로
-정규화한다.
+`timezone` 은 project 의 business timezone 이며 필수 IANA timezone 값이다. 현재 runtime 은 이 값으로
+step parameter 를 재해석하지 않고, 배포되는 Airflow DAG 의 timezone 에도 적용하지 않는다. 시간 parameter 는
+작성한 값 그대로 bind 된다.
 
 `paths.jobs`, `paths.dbt` 는 필수이며 project 내부 상대 경로여야 한다. 기본 skeleton 은 각각
 `jobs`, `dbt` 를 사용한다.

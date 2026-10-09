@@ -11,10 +11,11 @@ class AirflowConnectionResolver:
 def get_airflow_connection(conn_id: str):
     """Return an Airflow Connection inside task execution context.
 
-    Airflow 3 SDK `BaseHook.get_connection()` resolves through the secrets
-    backend chain, which reaches zeta4s-api. This module runs in the worker via
-    `operators.py`; zeta4s-api reads connection policies from the profile
-    instead, so there is no API-process path here and no metastore fallback.
+    Airflow 3 SDK `BaseHook.get_connection()` resolves through Airflow's own
+    connection lookup; zeta4s does not install an Airflow secrets backend. This
+    module runs in the worker via `operators.py`; zeta4s-api reads connection
+    policies from the profile instead, so there is no API-process path here and
+    no metastore fallback.
     """
     from airflow.sdk.bases.hook import BaseHook
 

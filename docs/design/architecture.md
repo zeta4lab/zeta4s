@@ -21,6 +21,7 @@ src/zeta4s/        엔진 구현
   dbt/             dbt model contract 정적 검증
 packages/          배포 단위 wheel. zeta4s-cli, zeta4s-api
 docker/            zeta4s-api image, scheduler 설정, postgres init, 관측 설정
+deploy/            k3s 배포 manifest
 scripts/           개발/검증 gate 와 설치 script
 tests/             계약 test
 zeta4s-work/       canonical showcase workspace
@@ -45,7 +46,7 @@ Prefect adapter 는 `zeta4s.prefect` 에 둔다.
 | CLI | click |
 | API | FastAPI, uvicorn |
 | metastore | PostgreSQL 기본. ClickHouse 선택 |
-| rowset storage | Parquet(verification), Iceberg(scheduler-projected) |
+| rowset storage | Parquet(core-orchestrated), Iceberg(scheduler-projected) |
 | data backend | ClickHouse(`clickhouse-connect`), Oracle(`oracledb` thin mode), Elasticsearch(client library 없이 `urllib` HTTP 호출) |
 | transform | dbt, native SQL |
 | scheduler backend | Airflow, Prefect |
@@ -71,7 +72,7 @@ version 갱신은 scheduler stack 갱신과 별도 과제로 다룬다.
 | Profile | project step 이 사용하는 외부 connection 과 환경 값 |
 | Metastore | deploy registration, artifact metadata, run/report/watermark/extract history/stage binding metadata. 기본 구현은 PostgreSQL 18이며 ClickHouse adapter도 선택 가능 |
 | Artifact storage | project bundle, 압축 해제된 artifact cache, Airflow standalone DAG source 저장소 |
-| Rowset storage | step 사이 row batch를 보존하는 runtime 내부 저장소. verification은 ephemeral Parquet, scheduler-projected 실행은 Iceberg snapshot을 사용 |
+| Rowset storage | step 사이 row batch를 보존하는 runtime 내부 저장소. local runner 는 ephemeral Parquet, scheduler-projected 실행은 Iceberg snapshot을 사용 |
 | Data backend adapters | profile connection `type` 으로 선택되는 stage/transform/write table operation adapter |
 
 ## Installation Boundary
@@ -89,10 +90,10 @@ Adapter layer 는 `zeta4s-api` 설치본 내부 구현이다. 세 번째 설치�
 Airflow CLI 를 부르지 않는다. 이것이 Airflow 를 교체 가능한 backend 로 만드는 조건이다 —
 metastore 를 공유하면 adapter 가 아니라 같은 배포 단위가 된다.
 
-**실행 위치가 기준이다.** Airflow worker 에서 도는 코드(DAG generation, operator, secrets
-backend)는 airflow 를 import 한다. `zeta4s-api` process 에서 도는 코드는 하지 않는다. 한
-파일이 양쪽에 걸치면 module 을 가른다 — note 동기화가 그 예로, worker callback 은
-`task_result_notes.py` 에 API 측 반영은 `run_notes.py` 에 있다.
+**실행 위치가 기준이다.** Airflow process 에서 도는 코드는 `zeta4s-api` 가 publish 한
+standalone DAG source 뿐이며, Airflow package 와 Python 표준 라이브러리만 import 한다.
+zeta4s package 는 Airflow image 에 설치하지 않는다. `zeta4s-api` process 에서 도는 코드는
+airflow 를 import 하지 않는다.
 
 `zeta4s.airflow.rest_client` 가 인증·재발급·timeout·오류 변환을 한 곳에서 다룬다. Prefect 가
 공식 SDK 를 쓰는 자리를 Airflow 쪽에서는 이 client 가 채운다. 대칭은 **경계**의 문제이지
@@ -142,7 +143,8 @@ adapter가 소유한다.
 - Profile 은 workspace 의 `profiles/*.yml` 로 관리한다.
 - 현재 로컬/검증 스택은 같은 PostgreSQL server의 별도 `zeta4s_metastore` database를 기본 metastore로 사용한다.
 - ClickHouse metastore adapter는 `ZETA4S_METASTORE_TYPE=clickhouse`로 선택하며 Docker `asset` profile이 필요하다.
-- Data backend adapter 는 ClickHouse 와 Oracle 을 지원한다.
+- Data backend adapter 는 ClickHouse, Oracle, Elasticsearch 를 지원한다. table stage/transform backend 는
+  ClickHouse 와 Oracle 이다.
 - Transform provider 는 `dbt.run`, `clickhouse.sql`, `oracle.sql` 이다.
 - Job graph 는 정적 step 목록과 명시 dependency 로 구성한다.
 - Scheduler run 실행과 adapter state 변경은 `zeta4s-api`의 공용 run service를 통해 관리한다.

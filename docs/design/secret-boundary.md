@@ -71,9 +71,9 @@ keyring 파일의 생성, 세대 추가, 옛 세대 제거는 **운영자 절차
 | compose | 실행 UID | 0400 | 일반 파일 |
 | Kubernetes | root | 0440 | `master.json -> ..data/master.json` symlink |
 
-두 형태를 함께 만족하도록 **world 접근만 막고**, 소유자는 실행 UID 또는 root를 허용한다.
-group을 막으면 Pod가 자기 Secret을 못 읽고, symlink를 거절하면 Kubernetes에서 keyring을
-읽을 수 없다.
+두 형태를 함께 만족하도록 **world 접근과 group write/exec 를 막고**, group read 는 파일 group 이
+실행 process 의 group 일 때만 허용한다. 소유자는 실행 UID 또는 root를 허용한다. group read를
+막으면 Pod가 자기 Secret을 못 읽고, symlink를 거절하면 Kubernetes에서 keyring을 읽을 수 없다.
 
 ## 쓰기 직렬화
 

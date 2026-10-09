@@ -17,15 +17,16 @@ z4s home 으로 사용한다.
     api.token
   cache/
   reports/
+  locks/
 ```
 
-Home 은 workspace 가 아니다. Home 은 로컬 CLI 설정, API connection, local secret, cache, report 를 저장한다.
+Home 은 workspace 가 아니다. Home 은 로컬 CLI 설정, API connection, local secret, cache, report, `z4s run` 중복 실행 방지 lock 을 저장한다.
 
 `ZETA4S_HOME` 은 사용하지 않는다.
 
 ## API Connection
 
-`z4s api connect [name]` 는 API token 을 생성하거나 기존 token source 를 재사용하고, 같은 name 을 기본
+`z4s api connect <name>` 는 API token 을 생성하거나 기존 token source 를 재사용하고, 같은 name 을 기본
 zeta4s-api endpoint 로 등록한다.
 
 ```bash
@@ -48,7 +49,7 @@ z4s api remove prod
 ```text
 /var/lib/zeta4s/
   artifacts/
-  current/
+  registered/
   runs/
   locks/
 ```

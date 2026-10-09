@@ -99,7 +99,7 @@ workload 이름과 container 이름은 배포 방식마다 다르므로 patch �
 
 | 항목 | 이유 |
 |---|---|
-| `zeta4s-airflow-dags` PVC를 `/opt/airflow/dags`에 mount | Airflow가 생성된 DAG를 읽는 유일한 공유 지점 |
+| `zeta4s-airflow-dags` PVC를 `/opt/airflow/dags`에 mount (Airflow만) | Airflow가 생성된 DAG를 읽는 유일한 공유 지점 |
 | `ZETA4S_API_INTERNAL_URL`, `ZETA4S_RUNTIME_INTERNAL_TOKEN` | generated DAG source가 `os.environ`으로 읽는 코드 계약 |
 | `zeta4s.io/runtime: scheduler` label | `zeta4s-api`의 ingress 정책이 발신자를 식별한다 |
 
