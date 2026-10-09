@@ -64,8 +64,8 @@ cluster 가 필요한 배포 검증은 이 gate 가 대신하지 않는다. 단�
 
 ## Pull Request Gate
 
-`.github/workflows/ci.yml` 은 `main` 으로 향하는 pull request 마다 Docker 없이 도는
-빠른 게이트다. 검증 항목:
+`.github/workflows/ci.yml` 은 `main` 으로 향하는 pull request 와 `main` push 마다 Docker
+없이 도는 빠른 게이트다. 검증 항목:
 
 - `uv sync --locked` — `uv.lock` 이 `pyproject.toml` 과 어긋나지 않음
 - `uv run ruff check .` — 죽은 import 와 undefined name
@@ -77,15 +77,16 @@ cluster 가 필요한 배포 검증은 이 gate 가 대신하지 않는다. 단�
 - `scripts/check_k3s_manifests.sh`
 - `scripts/check_wheel_install.sh`
 
-Docker stack 이 필요한 release gate 는 이 워크플로에 포함하지 않는다.
+`.github/workflows/release-gate.yml` 은 Docker stack release gate 를 scheduler backend 별
+runner 에서 실행한다. pull request, `main` push, version tag, nightly schedule 에서 돈다.
+실패하면 container log 를, 항상 reliability evidence 를 artifact 로 남긴다.
 
-`pull_request` 는 head 를 base 에 merge 한 결과를 검사하므로 merge 후 `main` push 에서
-다시 돌리지 않는다. GitHub Actions 는 job 을 분 단위로 올림 과금하므로 같은 내용을
-두 번 검사하지 않는다. main 에 직접 push 한 변경은 CI 가 검사하지 않는다. 필요하면
-`workflow_dispatch` 로 수동 실행한다.
+`.github/workflows/release.yml` 은 version tag push 시 tag 명과 `__version__` 일치를
+검증한 뒤 wheel 과 sdist 를 GitHub Release 에, `zeta4s-api` multi-arch image 를
+`ghcr.io/zeta4lab/zeta4s-api` 에 publish 한다.
 
-`.github/workflows/release-tag.yml` 은 version tag push 시 tag 명과 `__version__`
-일치를 검증한다.
+저장소는 공개이며 workflow 는 GitHub-hosted runner 에서만 돈다. 의존성 갱신은
+`.github/dependabot.yml` 이 pull request 로 올린다.
 
 ## Lint Gate
 

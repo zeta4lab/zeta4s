@@ -1,0 +1,79 @@
+name: release-gate
+
+# Docker stack 위에서 host wheel CLI 와 zeta4s-api image 로 showcase job matrix 를 실행한다.
+# 판정 절차의 정본은 scripts/check_release_runtime_showcases.sh 다. scheduler backend 마다
+# 빈 runtime state 의 별도 runner 에서 돌린다.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ['[0-9]*.[0-9]*.[0-9]*']
+  schedule:
+    # 외부 image 와 dependency drift 를 매일 확인한다.
+    - cron: '17 18 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: release-gate-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  stack:
+    name: stack (${{ matrix.profile }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [airflow, prefect]
+    steps:
+      - uses: actions/checkout@v4
+
+      # stack image 합이 runner 기본 여유 공간에 가깝다. 쓰지 않는 toolchain 을 지운다.
+      - name: runner disk 확보
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af >/dev/null
+          df -h /
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: ripgrep 설치
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: 의존성 설치
+        run: uv sync --locked
+
+      - name: compose env 생성
+        run: bash scripts/configure_open_env.sh --force
+
+      - name: release gate
+        env:
+          PROFILE_ID: ${{ matrix.profile }}
+        run: bash scripts/check_release_runtime_showcases.sh
+
+      - name: container log 수집
+        if: failure()
+        run: |
+          mkdir -p .zeta4s/ci-logs
+          docker ps -a > .zeta4s/ci-logs/ps.txt
+          for name in $(docker ps -a --format '{{.Names}}'); do
+            docker logs "$name" > ".zeta4s/ci-logs/${name}.log" 2>&1 || true
+          done
+
+      - name: evidence 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-gate-${{ matrix.profile }}
+          path: |
+            .zeta4s/reliability
+            .zeta4s/ci-logs
+          if-no-files-found: ignore
+          retention-days: 14

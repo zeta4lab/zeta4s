@@ -18,6 +18,10 @@ RUN uv build --wheel --out-dir /tmp/zeta4s-dist /tmp/zeta4s-src \
 
 FROM ${PYTHON_BASE_IMAGE}
 
+# ghcr 패키지를 공개 저장소에 연결한다. 연결된 패키지는 저장소 visibility 를 따른다.
+LABEL org.opencontainers.image.source="https://github.com/zeta4lab/zeta4s" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
 ARG PIP_INDEX_URL=
 ARG PIP_TRUSTED_HOST=
 # Airflow 이미지의 UID 다. zeta4s-state 볼륨을 airflow worker 와 공유하므로 파일 소유자가

@@ -1,0 +1,95 @@
+name: release
+
+# Roadmap 구현 묶음은 main 에 version tag 를 만드는 것으로 마감한다. tag 는 v 접두사 없는
+# semver 이며 src/zeta4s/__init__.py 의 __version__ 과 일치해야 한다. tag 가 검증되면
+# wheel 을 GitHub Release 에 싣고 zeta4s-api image 를 ghcr 에 publish 한다.
+on:
+  push:
+    tags: ['[0-9]*.[0-9]*.[0-9]*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 다시 publish 할 기존 version tag
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - id: tag
+        run: echo "tag=${{ inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+
+      - name: ripgrep 설치
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: tag 와 version 일치 검사
+        run: bash scripts/check_version_consistency.sh "${{ steps.tag.outputs.tag }}"
+
+  wheels:
+    needs: verify-tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify-tag.outputs.tag }}
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: wheel 빌드
+        run: |
+          uv build --wheel --sdist --out-dir dist .
+          uv build --wheel --out-dir dist packages/zeta4s-cli
+          uv build --wheel --out-dir dist packages/zeta4s-api
+          ls -l dist
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.verify-tag.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --title "$TAG" --generate-notes --verify-tag
+          fi
+
+  image:
+    needs: verify-tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/zeta4s-api
+      TAG: ${{ needs.verify-tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify-tag.outputs.tag }}
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: zeta4s-api image publish
+        run: |
+          ZETA4S_API_IMAGE="${IMAGE}:${TAG}" \
+            bash scripts/build_images.sh --env-file /dev/null --platform linux/amd64,linux/arm64 --push
+          docker buildx imagetools create -t "${IMAGE}:latest" "${IMAGE}:${TAG}"

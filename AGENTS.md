@@ -60,10 +60,14 @@
 - pull request 는 `.github/workflows/ci.yml` 이 Docker 없이 검증한다. `uv sync --locked`,
   `uv run ruff check .`, `uv run ruff format --check .`, `uv run pytest`,
   `scripts/check_static_cli_contract.sh`, `scripts/check_version_consistency.sh`,
-  `scripts/check_doc_contract.sh`, `scripts/check_wheel_install.sh` 다. Docker stack 이 필요한 release gate 는 CI 가
-  대신하지 않는다.
-- CI 는 pull request 에서만 돈다. main push 에서 중복 실행하지 않으므로 main 에 직접
-  push 한 변경은 검사되지 않는다. 변경은 pull request 로 반영한다.
+  `scripts/check_doc_contract.sh`, `scripts/check_wheel_install.sh` 다.
+- Docker stack 이 필요한 release gate 는 `.github/workflows/release-gate.yml` 이 scheduler
+  backend 별로 pull request, main push, version tag, nightly 에서 실행한다.
+- 저장소는 공개이며 GitHub-hosted runner 만 쓴다. 공개 저장소에 self-hosted runner 를
+  붙이지 않는다 — fork pull request 가 그 host 에 닿을 수 있다.
+- 변경은 pull request 로 반영한다. CI 는 main push 에서도 돌아 반영된 결과를 다시 검사한다.
+- version tag 를 push 하면 `.github/workflows/release.yml` 이 tag 와 `__version__` 일치를
+  검증하고 wheel 을 GitHub Release 에, `zeta4s-api` image 를 ghcr 에 publish 한다.
 - adapter/API 변경은 Docker stack 을 기동한 뒤 host `z4s` CLI 로 `z4s api deploy`,
   `z4s profile check`, 필요한 DAG run 을 확인한다.
 - `z4s` CLI 로 필요한 adapter/API 테스트를 수행할 수 없으면 우회 스크립트를 만들지 않는다.
