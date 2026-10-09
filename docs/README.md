@@ -7,7 +7,7 @@
 
 | 목적 | 시작 문서 |
 |------|-----------|
-| Quickstart, known limitations, Docker volume reset | [../README.md](../README.md) |
+| Quickstart, Docker volume reset | [../README.md](../README.md) |
 | zeta4s 를 쓴다 — workspace, profile, project 작성과 `z4s` 실행 | [usage/README.md](./usage/README.md) |
 | zeta4s 를 고친다 — 현재 코드의 설계 | [design/README.md](./design/README.md) |
 | 검증 gate | [gate/README.md](./gate/README.md) |
@@ -26,15 +26,16 @@
 |------|------|
 | version | `src/zeta4s/__init__.py` 의 `__version__` |
 | CI gate 목록 | `.github/workflows/ci.yml` |
+| release gate 절차와 판정 | `scripts/check_release_runtime_showcases.sh`, `scripts/check_runtime_reliability.sh` |
 | static contract 검사 항목 | `scripts/check_static_cli_contract.sh` |
 | lint/format 기준 | `pyproject.toml` 의 `[tool.ruff]` |
 | 내장 step type 선언 정본(`_STEP_TYPE_SPECS`), pool stage 매핑, `when.expr` 문법 | `src/zeta4s/project/step_graph.py` |
 | 외부 step type 등록(`StepTypeDescriptor`, entry-point discovery) | `src/zeta4s/project/step_types.py` |
 | 내장 step type 실행 매핑 | `src/zeta4s/core/step_executors.py` |
-| Airflow step task generic 바인딩 | `src/zeta4s/airflow/step_binding.py` |
+| 배포되는 Airflow DAG source | `src/zeta4s/airflow/dag_source.py` |
 | pool 이름과 slot 산출 | `src/zeta4s/project/pools.py` |
 | Prefect deployment, task policy, pool projection | `src/zeta4s/prefect/prefect_engine.py` |
-| step checkpoint contract 와 input resume | `src/zeta4s/metastore/contracts.py`, `src/zeta4s/runtime/input_checkpoints.py` |
+| step checkpoint contract, commit 경계와 input resume | `src/zeta4s/metastore/contracts.py`, `src/zeta4s/runtime/checkpoints.py`, `src/zeta4s/runtime/input_checkpoints.py` |
 | `z4s` CLI 명령 목록 | `src/zeta4s/cli/main.py` |
 | `zeta4s-api` endpoint 목록 | `src/zeta4s/api/app.py` |
 | scheduler 중립 run service와 adapter dispatch | `src/zeta4s/api/services/scheduler_runs.py` |

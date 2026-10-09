@@ -46,15 +46,14 @@ Metastore backend 사이의 metadata migration 과 dual-write 는 제공하지 �
 | Control plane | deploy, registration, run 상태, report 처럼 실행을 통제하고 추적하는 영역. |
 | Runtime data backend | `stage`, `dbt.run`, `<db>.sql`, `write` step 이 실제 업무 table 을 읽고 쓰는 DB 또는 target system. |
 | Data plane | Runtime data backend 에 저장되는 업무 데이터 영역. |
-| Artifact storage | project bundle, 압축 해제된 artifact cache, scheduler parse snapshot 을 저장하는 파일/object 저장소. |
-| Scheduler snapshot | Airflow scheduler 가 DAG parse 때 읽는 read-only 배포 상태 파일. DB/API 장애가 parse 실패로 바로 번지지 않게 하는 캐시다. |
+| Artifact storage | project bundle, 압축 해제된 artifact cache, Airflow standalone DAG source, scheduler snapshot 을 저장하는 파일/object 저장소. |
+| Scheduler snapshot | Airflow active registration 목록을 atomic publish 한 read-only 배포 상태 파일. |
 | Source of truth | 충돌이 있을 때 최종 기준으로 삼는 저장소. Deploy metadata 의 source of truth 는 metastore 다. |
-| Backend role | Project runtime connection 이 맡는 data-plane 역할. `source`, `stage`, `transform`, `write` 로 구분한다. |
 | Active deployment | 특정 project 에 대해 실행 기준으로 선택된 artifact registration. |
 | Step output binding | step 의 논리 output 이름과 실제 artifact/object/table 위치를 연결한 metadata. |
 | Operation report | `api deploy`, `api redeploy` 같은 API operation 의 단계별 실행 결과 report. |
 | Metastore adapter | metastore 구현체별 DDL, transaction, query 차이를 감추는 adapter. |
-| Metastore repository | deploy, run, step state/event/output binding 같은 zeta4s metadata 를 읽고 쓰는 port. |
+| Metastore repository | deploy, run, step state/event/checkpoint/output binding 같은 zeta4s metadata 를 읽고 쓰는 port. |
 | Transactional write | 여러 metadata 변경이 모두 성공하거나 모두 실패해야 하는 저장 방식. 중간 상태가 active deployment 로 노출되면 안 된다. |
 | Atomic publish | scheduler snapshot 파일을 쓰는 중간 상태 없이 한 번에 교체하는 방식. Scheduler 는 완성된 이전 snapshot 또는 새 snapshot 만 읽어야 한다. |
 | Profile | project step 이 사용하는 외부 connection 과 환경 값을 담는 사용자별 실행 설정. Metastore connection 과 scheduler pool resource 를 포함하지 않는다. |
@@ -79,6 +78,7 @@ identity 다.
 필수 field:
 
 - `project_id`
+- `timezone`
 - `paths`
 
 선택 field:
@@ -90,6 +90,7 @@ identity 다.
 ```yaml
 project_id: retail
 display_name: Retail Data Platform
+timezone: Asia/Seoul
 paths:
   jobs: jobs
   dbt: dbt
@@ -108,6 +109,8 @@ paths:
 
 - `display_name`
 - `schedule`
+- `execution`
+- `defaults`
 
 예:
 
@@ -151,64 +154,20 @@ steps:
 
 ### Runtime projection
 
-Airflow 는 runtime projection 이다. zeta4s `job_id` 는 Airflow DAG 로 materialize 되고, zeta4s `step_id`
-는 Airflow task 하나 이상으로 materialize 될 수 있다.
+Airflow 와 Prefect 는 runtime projection 이다. zeta4s `job_id` 는 Airflow DAG 또는 Prefect deployment
+로, zeta4s `step_id` 는 scheduler task 하나로 materialize 된다.
 
 ```text
 (project_id, job_id) -> dag_id
-(project_id, job_id, step_id) -> task_projection[]
+(project_id, job_id, step_id) -> task_id
 ```
 
-`dag_id` 와 `task_id` 는 Airflow projection 식별자이며 metastore 의 정규 key 가 아니다. Airflow `dag_id`
+`dag_id` 와 `task_id` 는 scheduler projection 식별자이며 metastore 의 정규 key 가 아니다. Airflow `dag_id`
 는 API 조회 context 나 runtime bridge 에서만 보조 식별자로 사용한다. `dag_id` 에서 `project_id`/`job_id`
 를 복원하는 처리는 Airflow projection 을 해석하는 경계에만 둔다.
 
-Task projection 최소 field:
-
-- `task_id`
-- `task_display_name`
-
-`task_id` 는 zeta4s 가 runtime projection 단계에서 생성한 physical task identity 다. Airflow adapter 는
-core `RunReporter` 경계로 같은 값을 `step_execution` 에 기록한다.
-
-`task_display_name` 은 UI 표시용 이름이며 adapter 가 생성한다. 사용자가 job YAML 에서 직접 작성하는
-core authoring field 가 아니다.
-
-예:
-
-```json
-{
-  "project_id": "retail",
-  "job_id": "daily_mart",
-  "step_id": "build_mart",
-  "tasks": [
-    {
-      "task_id": "build_mart__raw_orders",
-      "task_display_name": "Build Mart / raw_orders"
-    },
-    {
-      "task_id": "build_mart__daily_revenue",
-      "task_display_name": "Build Mart / daily_revenue"
-    }
-  ]
-}
-```
-
-단일 task 로 materialize 되는 step 도 같은 projection 형태를 가진다.
-
-```json
-{
-  "step_id": "extract_orders",
-  "tasks": [
-    {
-      "task_id": "extract_orders",
-      "task_display_name": "Extract Orders"
-    }
-  ]
-}
-```
-
-UI 는 `task_display_name`, step `display_name`, `task_id` 순서로 fallback 한다.
+`task_id` 는 runtime projection 단계에서 생성한 physical task identity 이며 현재 projection 은 `step_id`
+를 그대로 쓴다. Scheduler 실행 경로는 core `RunReporter` 경계로 같은 값을 `step_execution` 에 기록한다.
 
 ### Validation
 
@@ -225,7 +184,7 @@ metastore
   zeta4s 공통 metadata 저장
 
 artifact storage
-  project bundle 과 scheduler parse cache 저장
+  project bundle, artifact cache, Airflow DAG source 저장
 
 runtime data backend
   stage, transform, write source table 저장
@@ -242,7 +201,6 @@ Metastore 는 다음 정보를 저장한다.
 - DAG registration state
 - run metadata
 - step execution state
-- task projection metadata
 - step checkpoint state
 - step event history
 - step output binding
@@ -302,18 +260,8 @@ Metastore adapter 는 profile 을 읽지 않는다. Metastore endpoint, credenti
 Profile connection 은 source/stage/transform/write backend 전용이다. 같은 물리 제품을 쓰더라도
 metastore connection 과 profile connection 은 별도 lifecycle 로 본다.
 
-Metastore interface 는 최소 다음 repository 를 제공한다.
-
-- `DeploymentRepository`
-- `ArtifactRepository`
-- `OperationReportRepository`
-- `RunMetadataRepository`
-- `StepExecutionRepository`
-- `TaskProjectionRepository`
-- `StepStateRepository`
-- `StepEventRepository`
-- `StepOutputBindingRepository`
-- `BackendRegistryRepository`
+Metastore interface 가 제공하는 repository 목록은 `src/zeta4s/metastore/contracts.py` 의
+`MetastoreAdapter` protocol 이 정본이다.
 
 Metastore adapter 는 다음 책임만 가진다.
 
@@ -349,21 +297,7 @@ Repository 공통 규칙:
 - JSON payload 는 repository 입출력에서 structured object 로 다루고, adapter 가 DB별 저장 표현으로 변환한다.
 - Adapter 는 DB별 timestamp precision 차이가 latest selection 결과를 바꾸지 않게 해야 한다.
 
-Repository 별 최소 operation:
-
-| Repository | 최소 operation |
-|------------|----------------|
-| `DeploymentRepository` | active deployment upsert, remove, project 조회, active list |
-| `ArtifactRepository` | artifact upsert, artifact id 조회 |
-| `OperationReportRepository` | operation report save, operation id 조회, project별 list |
-| `RunMetadataRepository` | run create/update, run id 조회, project/job별 list |
-| `StepExecutionRepository` | task attempt execution record, run별 execution list |
-| `TaskProjectionRepository` | deploy artifact 기준 task projection record/list |
-| `StepStateRepository` | state upsert, state get, project/job/step별 list |
-| `StepEventRepository` | event record, project/job/step/run별 list |
-| `StepOutputBindingRepository` | output binding record, upstream output resolve |
-| `BackendRegistryRepository` | profile connection role record/list |
-| `SecretRepository` | encrypted secret version write, active metadata 조회, active ciphertext resolve |
+Repository 별 operation 은 `src/zeta4s/metastore/contracts.py` 의 각 repository protocol 이 정본이다.
 
 ## Logical Schema Model
 
@@ -386,26 +320,16 @@ Logical schema 규칙:
 - `String`, `DateTime64(3)`, `UInt64`, `ReplacingMergeTree`, `argMax` 같은 표현은 ClickHouse adapter 내부에만 둔다.
 - PostgreSQL adapter 는 `TEXT`, `INTEGER/BIGINT`, `TIMESTAMPTZ`, `JSONB`, `PRIMARY KEY`,
   `ON CONFLICT` 로 같은 logical schema 를 구현한다.
-- Schema inspection 은 physical DDL 문자열 비교가 아니라 required logical column 과 capability 를 검증한다.
+- Schema inspection 은 physical DDL 문자열 비교가 아니라 required table 의 존재를 검증한다.
 - Fresh bootstrap 은 logical schema 를 해당 adapter 의 physical schema 로 materialize 한다.
-- 아래 table 정의의 `revision` 은 multi-row current-state adapter가 제공해야 하는 ordering capability 다.
+- Current-state table 의 `revision` 은 multi-row current-state adapter가 제공해야 하는 ordering capability 다.
   PostgreSQL처럼 primary-key upsert로 current row 하나만 유지하는 adapter는 physical `revision` column
   없이 같은 capability를 충족할 수 있다.
 
 ## PostgreSQL Physical Contract
 
-`PostgresMetastoreAdapter` 는 `MetastoreAdapter` protocol 의 repository 전체를 구현한다.
-
-- `DeploymentRepository`
-- `ArtifactRepository`
-- `OperationReportRepository`
-- `RunMetadataRepository`
-- `StepExecutionRepository`
-- `StepStateRepository`
-- `StepEventRepository`
-- `StepOutputBindingRepository`
-- `BackendRegistryRepository`
-- `SecretRepository`
+`PostgresMetastoreAdapter` 는 `MetastoreAdapter` protocol 의 repository 전체를 구현한다. Physical
+table 과 column 은 `src/zeta4s/metastore/backends/postgres.py` 의 `SCHEMA_STATEMENTS` 가 정본이다.
 
 상태성 table 의 primary key 는 각 repository logical key 와 같다. `deploy_registration` 은
 `project_id`, `artifact` 는 `artifact_id`, `run_metadata` 는 `run_id`, `step_execution` 은
@@ -418,11 +342,10 @@ instant 는 `TIMESTAMPTZ`를 사용한다. Repository method 하나의 write는 
 commit되고, 예외가 발생하면 rollback된 뒤 원래 database exception을 상위 API failure contract로
 전달한다.
 
-Schema inspection 은 `information_schema.columns`와 PostgreSQL catalog에서 required table, logical key,
-JSON/timestamp capability를 읽기 전용으로 확인한다. `bootstrap()` 전 inspection은 `missing`, 모든
-table/index 생성 후 inspection은 `ok`를 반환한다.
+Schema inspection 은 `information_schema.tables`에서 required table 의 존재를 읽기 전용으로 확인한다.
+`bootstrap()` 전 inspection은 `missing`, 모든 table 생성 후 inspection은 `ok`를 반환한다.
 
-PostgreSQL adapter 는 `psycopg 3` sync client를 사용한다. SQL parameter는 `%s` binding으로 전달하고
+PostgreSQL adapter 는 `psycopg 3` sync client를 사용한다. SQL parameter는 named parameter binding으로 전달하고
 identity/value를 문자열 결합으로 query에 삽입하지 않는다. Secret repository는 ClickHouse adapter와
 동일하게 ciphertext envelope만 저장하고 plaintext column을 만들지 않는다.
 
@@ -456,9 +379,10 @@ GET  /api/v1/platform/status
 `POST /api/v1/platform/bootstrap` 은 다음을 수행한다.
 
 - configured metastore backend 확인
-- adapter capability 확인
 - schema bootstrap
 - schema inspection
+- Iceberg rowset store 확인
+- secret master keyring 검사
 - operation report 저장
 
 `GET /api/v1/platform/status` 는 다음을 반환한다.
@@ -483,118 +407,44 @@ zeta4s_metastore.step_event
 zeta4s_metastore.step_output_binding
 ```
 
-Project data plane object:
-
-```text
-z4p_sales_pipeline.stg_orders
-z4p_sales_pipeline.dim_customer
-```
-
-`z4p_<project_id>` 계열 namespace 는 ClickHouse runtime data backend 를 선택한 project 의 data plane 이다.
-Metastore 구현체가 ClickHouse 라도 zeta4s metadata 를 이 namespace 에 저장하지 않는다.
+Project data plane object 는 step 계약이 선언한 `schema.table` 이다. Metastore 구현체가 ClickHouse 라도
+zeta4s metadata 를 project data plane schema 에 저장하지 않는다.
 
 ## Metadata Model
 
+Table 별 column 과 key 는 `src/zeta4s/metastore/contracts.py` 의 repository 계약과 adapter DDL
+(`src/zeta4s/metastore/backends/postgres.py`, `src/zeta4s/metastore/backends/clickhouse.py`)이 정본이다.
+여기에는 column 목록으로 드러나지 않는 의미만 둔다.
+
 ### deploy_registration
 
-Project 의 active deployment 를 기록한다.
-
-필수 column:
-
-- `project_id`
-- `artifact_id`
-- `profile`
-- `registered_at`
-- `dag_ids`
-- `status`
-- `revision`
-- `updated_at`
-
-`project_id` 는 하나의 active deployment 를 가진다. 새 deploy 는 같은 project 의 registration 을
-transactional 하게 교체한다.
+Project 의 active deployment 를 기록한다. `project_id` 는 하나의 active deployment 를 가진다. 새 deploy 는
+같은 project 의 registration 을 transactional 하게 교체한다. 실제 선택한 scheduler 는
+`scheduler_backend` 로 기록한다.
 
 ### artifact
 
-Artifact payload 의 identity 와 storage 위치를 기록한다.
-
-필수 column:
-
-- `artifact_id`
-- `project_id`
-- `checksum`
-- `storage_uri`
-- `created_at`
-- `revision`
-- `updated_at`
-- `created_by`
-
-Artifact payload 는 object storage 또는 shared artifact cache 에 둔다. Metastore 의 `storage_uri` 는
-그 위치를 가리킨다.
+Artifact payload 의 identity 와 storage 위치를 기록한다. Artifact payload 는 object storage 또는 shared
+artifact cache 에 두고 metastore 의 `storage_uri` 가 그 위치를 가리킨다. Runtime connection policy
+projection 도 artifact metadata 에 둔다.
 
 ### operation_report
 
-Runtime operation 의 최종 report 를 저장한다.
-
-필수 column:
-
-- `operation_id`
-- `command`
-- `project_id`
-- `status`
-- `summary`
-- `created_at`
-- `revision`
-- `updated_at`
-
-### operation_step_report
-
-Runtime operation 의 step 별 상태를 저장한다.
-
-필수 column:
-
-- `operation_id`
-- `operation_step_id`
-- `status`
-- `summary`
-- `issue_codes`
-- `updated_at`
+Runtime operation 의 최종 report 를 저장한다. 단계별 상태는 report payload 안에 있다.
 
 ### secret
 
 zeta4s-managed secret value 를 application-level encryption 후 저장한다. 이 table 은 plaintext secret 을
-저장하지 않는다. Secret master key 는 metastore 밖의 master key provider 가 제공한다.
-
-필수 column:
-
-- `secret_key`
-- `version`
-- `ciphertext`
-- `algorithm`
-- `key_id`
-- `status`
-- `created_at`
-- `rotated_at`
-- `revision`
-- `updated_at`
+저장하지 않는다. Secret master keyring 은 metastore 밖의 운영자 소유 파일이다.
 
 `secret_key` 는 profile 의 `password_ref` 와 매칭되는 logical secret key 다. `version` 은 같은
-`secret_key` 의 secret rotation 순서를 나타낸다. 새 secret 등록과 rotation 은 append 방식으로 새
-version row 를 기록한다.
+`secret_key` 의 값 변경 순서를 나타낸다. 새 secret 등록은 새 version row 를 `active` 로 기록하고 이전
+active version 을 `inactive` 로 바꾼다. 하나의 `secret_key` 에 대해 active version 은 하나여야 한다.
 
-`status` 는 다음 값을 가진다.
-
-- `active`
-- `rotated`
-- `revoked`
-- `deleted`
-
-하나의 `secret_key` 에 대해 active version 은 하나여야 한다. Latest active 조회는 `updated_at` 단독이
-아니라 `revision` 과 `version` 을 포함한 deterministic ordering 으로 선택한다.
-
-`ciphertext` 는 authenticated encryption 결과다. Adapter 는 DB별 binary/string 표현을 선택할 수 있으나
-repository boundary 에서는 plaintext 를 반환하지 않고 decrypt 단계에 필요한 encrypted envelope 만 다룬다.
-`algorithm` 은 예를 들어 `AESGCM256` 같은 encryption suite 를 기록한다. `key_id` 는 master key provider
-가 key version/alias 를 노출할 때만 채운다.
+`ciphertext` 는 authenticated encryption 결과다. Repository boundary 에서는 plaintext 를 반환하지 않고
+decrypt 단계에 필요한 encrypted envelope 만 다룬다. `algorithm` 은 encryption suite 를 기록한다.
+`key_id` 는 ciphertext 를 만든 keyring 세대이며, `key_id` 없는 row 는 resolve 하지 않는다. 세대와 회전
+계약은 `secret-boundary.md` 에 있다.
 
 금지:
 
@@ -608,67 +458,18 @@ zeta4s API와 scheduler runtime이 생성한 canonical run metadata를 저장한
 상태는 adapter가 정규화하며 metastore는 scheduler 종류와 무관한 identity, 상태, 입력과
 zeta4s context를 보관한다.
 
-필수 column:
-
-- `run_id`
-- `project_id`
-- `job_id`
-- `scheduler_run_id`
-- `artifact_id`
-- `created_at`
-- `run_json`
-- `revision`
-- `updated_at`
-
-`scheduler`, `state`, `parameters`, `adapter_metadata`와 canonical timestamp는 `run_json` 계약이다.
+`scheduler`, `state`, `parameters`, `adapter_metadata`와 canonical timestamp는 `run` payload 계약이다.
 Native scheduler object id와 원본 상태는 `adapter_metadata`에만 두고 canonical identity로 쓰지
 않는다.
 
 ### step_execution
 
-각 step attempt 의 실행 상태를 기록한다.
-
-필수 column:
-
-- `project_id`
-- `job_id`
-- `run_id`
-- `step_id`
-- `task_id`
-- `step_type`
-- `attempt`
-- `metadata.adapter_attempt`: scheduler infrastructure retry 횟수. canonical `attempt` 와 분리한다.
-- `status`
-- `started_at`
-- `ended_at`
-- `revision`
-- `updated_at`
+각 step attempt 의 실행 상태를 기록한다. `attempt` 는 canonical step retry 횟수이고,
+`metadata.adapter_attempt` 는 scheduler infrastructure retry 횟수로 분리한다.
 
 `step_id` 는 zeta4s logical step identity 이고, `task_id` 는 runtime projection 단계에서 생성된
-physical task identity 다. `dbt.run` 처럼 하나의 logical step 이 여러 task 로 분해될 수 있으므로 둘을
-분리해 저장한다.
-
-`step_type` 별 상세 payload 는 공통 column 을 늘리지 않고 `metadata` 또는 별도 event payload 로 기록한다.
-
-### task_projection
-
-runtime projection 단계에서 생성한 physical task metadata 를 기록한다. UI 는 이 projection 을 기준으로
-logical step 과 physical task 목록을 표시한다.
-
-필수 column:
-
-- `project_id`
-- `job_id`
-- `step_id`
-- `task_id`
-- `task_display_name`
-- `artifact_id`
-- `revision`
-- `updated_at`
-
-`task_id` 는 zeta4s 가 projection 단계에서 생성한다. Airflow 는 실행 중 같은 값을
-`TaskInstance.task_id` 로 노출한다. `task_display_name` 은 adapter 가 생성하는 UI 표시명이며 authoring
-YAML 의 core field 가 아니다.
+physical task identity 다. `step_type` 별 상세 payload 는 공통 column 을 늘리지 않고 `metadata` 또는
+별도 event payload 로 기록한다.
 
 ### step_checkpoint
 
@@ -692,19 +493,7 @@ append write는 restart-only다. replace/upsert target은 checkpoint receipt로 
 
 ### step_state
 
-step 이 다음 실행에서 참조해야 하는 checkpoint/state 를 기록한다.
-
-필수 column:
-
-- `project_id`
-- `job_id`
-- `step_id`
-- `state_key`
-- `state_value_json`
-- `state_type`
-- `run_id`
-- `revision`
-- `updated_at`
+step 이 다음 실행에서 참조해야 하는 state 를 기록한다.
 
 예:
 
@@ -720,22 +509,11 @@ Extract watermark state:
 
 - `state_key`: `watermark:{output_name}:{watermark_column}`
 - `state_type`: `watermark`
-- `state_value_json`: `{"value": "...", "column": "...", "output": "..."}`
+- `state_value`: `{"value": "...", "column": "...", "output": "..."}`
 
 ### step_event
 
-step 실행 중 발생한 이력성 event 를 기록한다.
-
-필수 column:
-
-- `project_id`
-- `job_id`
-- `run_id`
-- `step_id`
-- `event_type`
-- `event_time`
-- `status`
-- `payload`
+step 실행 중 발생한 이력성 event 를 append-only 로 기록한다.
 
 예:
 
@@ -746,52 +524,19 @@ step 실행 중 발생한 이력성 event 를 기록한다.
 
 ### step_output_binding
 
-step 의 논리 output 과 실제 artifact/object/table 위치를 연결한다.
-
-필수 column:
-
-- `project_id`
-- `job_id`
-- `run_id`
-- `step_id`
-- `output_name`
-- `output_kind`
-- `backend_conn`
-- `backend_type`
-- `object_ref`
-- `artifact_id`
-- `metadata`
-- `created_at`
-
-`object_ref` 는 output 종류에 따라 table name, artifact URI, external object id 를 담는다.
-Metastore 는 step output reference 를 후속 step 의 data reference 로 해석할 때 이 binding 을 사용한다.
-`stage` table binding 은 `output_kind=table` 인 `step_output_binding` 의 한 사례다.
+step 의 논리 output 과 실제 artifact/object/table 위치를 연결한다. 위치와 backend 정보는 `binding`
+payload 에 둔다. Metastore 는 step output reference 를 후속 step 의 data reference 로 해석할 때 이
+binding 을 사용한다. `stage` table binding 은 `output_kind=table` 인 `step_output_binding` 의 한
+사례다.
 
 ### backend_registry
 
-Profile connection 의 data-plane 역할을 기록한다. Metastore endpoint 는 backend registry 에 기록하지
-않는다.
-
-필수 column:
-
-- `connection_id`
-- `connection_type`
-- `role`
-- `status`
-- `updated_at`
-
-`role` 은 다음 값을 가진다.
-
-- `source`
-- `stage`
-- `transform`
-- `write`
-
-하나의 connection 이 여러 role 을 가질 수 있다.
+Project 별 active deployment 의 runtime connection(backend) 을 기록한다. Metastore endpoint 는 backend
+registry 에 기록하지 않는다.
 
 ## Deploy 와 Scheduler
 
-Metastore 는 deploy metadata 의 source of truth 다. Airflow scheduler parse 경로는 metastore 에 강하게
+Metastore 는 deploy metadata 의 source of truth 다. Airflow scheduler parse 경로는 metastore 와 API 에
 의존하지 않는다.
 
 ```text
@@ -799,30 +544,20 @@ z4s api deploy
   -> metastore transaction
   -> artifact storage write
   -> scheduler snapshot publish
+  -> Airflow standalone DAG source publish
 
 Airflow scheduler
-  -> scheduler snapshot read
+  -> standalone DAG source read
   -> DAG parse
 ```
 
-Scheduler snapshot 은 read-only artifact 다. DB/API 장애가 DAG parse 실패로 전파되지 않도록,
-scheduler 는 마지막 정상 snapshot 을 계속 읽을 수 있어야 한다.
+Standalone DAG source 는 parse 에 필요한 값을 source 안에 담으므로 DB/API 장애가 DAG parse 실패로
+전파되지 않는다. Scheduler snapshot 과 DAG source 는 atomic publish 한다.
 
 deploy 가 선택한 실제 backend 는 project 의 active deployment metadata 에
 `scheduler_backend` 로 기록한다. 이후 local profile 의 scheduler 값이 바뀌어도 undeploy 는
-이 metadata 의 backend 를 사용한다. Airflow 에만 필요한 등록 정보는 scheduler snapshot 에 둔다.
-
-Snapshot 에 포함할 최소 정보:
-
-- `project_id`
-- `artifact_id`
-- `registered_at`
-- artifact cache 위치
-- job 목록
-- 각 job 의 `job_id`
-- 각 job 의 `dag_id`
-- 각 job 의 config path
-- 각 job 의 task projection 목록
+이 metadata 의 backend 를 사용한다. Scheduler snapshot 과 DAG source 는 Airflow active registration
+만 담는다. Snapshot 항목 형태는 `DeploymentRegistration.as_scheduler_item()` 이 정본이다.
 
 ## 제약
 

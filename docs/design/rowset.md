@@ -19,14 +19,15 @@ Authoring contract는 `kind: rowset`만 선언한다. runtime output binding은 
 
 - `kind`: `rowset`
 - `storage`: runtime이 선택한 `parquet` 또는 `iceberg`
-- `storage_uri`
+- `uri`
 - `table_identifier`와 `snapshot_id` (Iceberg인 경우)
 - `rows`
 - `bytes`
 - `columns`
 - `column_specs`
+- `schema_fingerprint`
 
-`column_specs`는 task result output manifest와 rowset descriptor에 기록한다. verification Runner는
+`column_specs`는 task result output manifest와 rowset descriptor에 기록한다. local runner(`z4s run`)는
 ephemeral Parquet를, scheduler-projected 실행은 Iceberg snapshot을 사용하며 project/profile은 이를
 선택하지 않는다.
 

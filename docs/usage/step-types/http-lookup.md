@@ -22,7 +22,7 @@ to-be 확장으로 다룬다.
 
 ```yaml
 steps:
-  - id: enrich_ticket_priority
+  - step_id: enrich_ticket_priority
     type: http.lookup
     conn: analytics_clickhouse
     depends_on:
@@ -72,9 +72,8 @@ target:
 request 에 넣을 lookup column 이름이다. `target.table` 은 `conn` 이 가리키는 DB 에 만들 target table
 이름이다.
 
-DB table 이름은 항상 `schema.table` 형식이다. ClickHouse 에서는 database 이름을 schema 위치에 쓴다.
-현재 계약의 `schema.table` 단일 문자열 표기에서는 quoted identifier 를 표현하지 않는다. 예시는
-lowercase 로 쓴다.
+DB table 이름은 `table` 또는 `schema.table` 형식이다. ClickHouse 에서는 database 이름을 schema 위치에
+쓴다. 현재 계약의 단일 문자열 표기에서는 quoted identifier 를 표현하지 않는다. 예시는 lowercase 로 쓴다.
 `lookup.table` 은 첫 번째 `.` 만 upstream step id 와 output 이름의 구분자로 해석한다. 예를 들어
 `stage_support_tickets.mart.support_tickets_raw` 에서 step id 는 `stage_support_tickets`, output
 이름은 `mart.support_tickets_raw` 다.
@@ -115,7 +114,7 @@ lookup:
 
 현재 계약 기준 필수 field:
 
-- `id`
+- `step_id`
 - `type`
 - `conn`
 - `depends_on`
@@ -123,7 +122,7 @@ lookup:
 - `lookup.column`
 - `target.table`
 - `api.conn`
-- `api.method`
+- `api.method`: `GET` 또는 `POST`
 - `api.response.columns`
 
 ## 선택 field
@@ -160,10 +159,10 @@ HTTP API 옵션:
 - `source`
 - `map`
 - `input`
-- `params.output_columns`
+- `params`
 - `output`
 
-`source`, `map`, `params.output_columns` 는 현재 계약에서 쓰지 않는다. 현재 계약에서는 `lookup`,
+`source`, `map`, `params` 는 현재 계약에서 쓰지 않는다. 현재 계약에서는 `lookup`,
 `target`, `api`, `api.response.columns` 로 역할을 나눈다.
 
 ## Connection
@@ -264,6 +263,10 @@ api:
 외부 API 의 에러 처리 정책은 외부 API 의 책임이다. `http.lookup` 은 API 호출 결과를 기준으로 target
 table 생성 metrics 를 남긴다.
 
+`api.retries` 만큼 재시도한 뒤에도 요청이 실패하거나 `api.response.json_paths` 로 값을 찾지 못한 row 는
+target table 에 넣지 않는다. 해당 row 는 log 를 남기고 `failed_rows`/`skipped_rows` 로 집계하며, step 은
+실패시키지 않는다.
+
 Runtime result metrics:
 
 - `input_rows`
@@ -323,7 +326,7 @@ Lookup 대상 table 을 만드는 upstream step 은 `depends_on` 에 명시한�
 
 ```yaml
 steps:
-  - id: stage_support_tickets
+  - step_id: stage_support_tickets
     type: clickhouse.stage
     conn: analytics_clickhouse
     depends_on:
@@ -331,7 +334,7 @@ steps:
     map:
       extract_support_tickets.support_tickets_rows: mart.support_tickets_raw
 
-  - id: enrich_ticket_priority
+  - step_id: enrich_ticket_priority
     type: http.lookup
     conn: analytics_clickhouse
     depends_on:

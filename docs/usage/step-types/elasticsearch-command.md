@@ -32,7 +32,7 @@ API 호환 범위에서 동작할 수 있지만 release validation 대상은 아
 
 ```yaml
 steps:
-  - id: seed_product_documents
+  - step_id: seed_product_documents
     type: elasticsearch.command
     conn: elasticsearch_seed
     operation: bulk
@@ -57,7 +57,7 @@ steps:
 
 ```yaml
 steps:
-  - id: rebuild_product_search
+  - step_id: rebuild_product_search
     type: elasticsearch.command
     conn: elasticsearch_admin
     operation: reindex
@@ -80,7 +80,7 @@ SQL 이 아니라 기존 source index 의 document selection 조건이다.
 
 ```yaml
 steps:
-  - id: mark_discontinued_products
+  - step_id: mark_discontinued_products
     type: elasticsearch.command
     conn: elasticsearch_admin
     operation: update_by_query
@@ -101,7 +101,7 @@ steps:
 
 ```yaml
 steps:
-  - id: delete_expired_sessions
+  - step_id: delete_expired_sessions
     type: elasticsearch.command
     conn: elasticsearch_admin
     operation: delete_by_query
@@ -119,7 +119,7 @@ steps:
 
 ```yaml
 steps:
-  - id: put_product_pipeline
+  - step_id: put_product_pipeline
     type: elasticsearch.command
     conn: elasticsearch_admin
     operation: request
@@ -157,8 +157,8 @@ Operation 별 추가 필수 field:
 
 - `bulk`: `source.file`, `source.format: ndjson`
 - `reindex`: `body.source`, `body.dest`
-- `update_by_query`: `target.index`, `body.query`, `body.script`
-- `delete_by_query`: `target.index`, `body.query`
+- `update_by_query`: `target.index` 또는 `target.index_template`, `body.query`, `body.script`
+- `delete_by_query`: `target.index` 또는 `target.index_template`, `body.query`
 - `request`: `request.method`, `request.path`
 
 ## 선택 field
@@ -166,11 +166,11 @@ Operation 별 추가 필수 field:
 - `target.index`: 단일 target index
 - `target.index_template`: runtime context 로 render 할 target index template
 - `target.index_timezone`: `index_template` render 기준 timezone
-- `target.create_index_if_missing`: index 가 없으면 생성
-- `target.settings`: project root 기준 index settings JSON file path
-- `target.mappings`: project root 기준 index mappings JSON file path
-- `source.file`: project root 기준 request body file path
-- `source.format`: `json` 또는 `ndjson`
+- `target.create_index_if_missing`: `bulk` 에서 index 가 없으면 생성
+- `target.settings`: `bulk` index 생성 시 쓰는 project root 기준 index settings JSON file path
+- `target.mappings`: `bulk` index 생성 시 쓰는 project root 기준 index mappings JSON file path
+- `source.file`: project root 기준 bulk NDJSON file path
+- `source.format`: `ndjson`
 - `body`: inline JSON body
 - `request.body`: project root 기준 JSON/NDJSON body file path 또는 inline mapping
 - `refresh`: command 후 refresh 여부. Boolean 또는 Elasticsearch refresh option 문자열을 허용한다.
@@ -192,7 +192,6 @@ Operation 별 추가 필수 field:
 
 - `source.file` 과 `request.body` 는 project root 기준 상대 경로다.
 - `source.format: ndjson` 은 newline-delimited JSON 이며 마지막 line 은 newline 으로 끝나야 한다.
-- `source.format: json` 은 단일 JSON object 여야 한다.
 - body file 에 template rendering 을 적용하지 않는다.
 - bulk item error 또는 Elasticsearch response failure 가 있으면 step 은 실패한다.
 
@@ -215,7 +214,7 @@ Elasticsearch extract showcase 는 Elasticsearch 본래 seed 방식인 `_bulk` N
 
 ```yaml
 steps:
-  - id: delete_sales_index
+  - step_id: delete_sales_index
     type: elasticsearch.command
     conn: elasticsearch_source
     operation: request
@@ -223,7 +222,7 @@ steps:
       method: DELETE
       path: /sales-documents
 
-  - id: create_sales_index
+  - step_id: create_sales_index
     type: elasticsearch.command
     conn: elasticsearch_source
     operation: request
@@ -234,7 +233,7 @@ steps:
       path: /sales-documents
       body: elasticsearch/sales.index.json
 
-  - id: seed_sales_documents
+  - step_id: seed_sales_documents
     type: elasticsearch.command
     conn: elasticsearch_source
     operation: bulk
@@ -247,7 +246,7 @@ steps:
       format: ndjson
     refresh: true
 
-  - id: fetch_sales_documents
+  - step_id: fetch_sales_documents
     type: elasticsearch.extract
     conn: elasticsearch_source
     depends_on:

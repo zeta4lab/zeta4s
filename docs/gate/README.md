@@ -10,33 +10,30 @@ runtime data backend로 추가하며 metastore 기본값을 바꾸지 않는다.
 
 ```bash
 bash scripts/configure_open_env.sh --force
-docker compose --env-file .env --profile airflow --profile prefect --profile asset up -d --wait
+bash scripts/build_images.sh --load
+docker compose --env-file .env --profile airflow --profile prefect --profile asset --profile checkpoint up -d --wait
 ```
 
 Volume 을 포함해 runtime state 를 초기화하려면 다음 명령을 사용한다.
 
 ```bash
-docker compose --env-file .env --profile airflow --profile prefect --profile asset down -v --remove-orphans
-docker compose --env-file .env --profile airflow --profile prefect --profile asset up -d --wait
+docker compose --env-file .env --profile airflow --profile prefect --profile asset --profile checkpoint down -v --remove-orphans
+docker compose --env-file .env --profile airflow --profile prefect --profile asset --profile checkpoint up -d --wait
 ```
 
 ## Release Gate
 
 Release gate 는 source bind 없는 Docker image 와 host wheel CLI 를 사용한다. 검증 대상 project 와
-job matrix 는 workspace showcase 계약으로 명시한다.
+job matrix 는 workspace showcase 계약으로 명시한다. 절차와 판정의 정본은
+`scripts/check_release_runtime_showcases.sh` 와 그것이 호출하는 `scripts/check_runtime_reliability.sh` 다.
 
-Gate 가 확인하는 기준:
+Gate 가 확인하는 기준의 갈래:
 
-- `uv run python -m compileall -q src/zeta4s`
-- `git diff --check`
-- `z4s project check`
-- `z4s profile check`
-- `api bootstrap`
-- `api status`의 `metastore.type=postgres`, `schema_status=ok`
-- `api deploy`
-- scheduler별 release run matrix
-- local/scheduler terminal result conformance
-- 실패 step 의 `attempt`/`adapter_attempt` 기록
+- `api bootstrap`, `api status`(`bootstrap_status=ready`, `schema_status=ok`), profile 의
+  `password_ref` secret 등록, `z4s profile check`
+- `compileall`, `git diff --check`, `z4s project check`
+- `api deploy` 와 scheduler 별 showcase job run matrix 의 성공
+- checkpoint recovery evidence (아래 Checkpoint Recovery)
 
 Evidence 는 `.zeta4s/reliability/<project>/<timestamp>/` 에 저장한다. 이 경로는 repository 에
 commit 하지 않는다.
@@ -173,10 +170,14 @@ assertion 을 나열한 script 이므로, 정확한 검사 목록은 script 자�
 - step task 바인딩이 `src/zeta4s/airflow/step_binding.py` 의 generic `core_step_operator` 로 이뤄짐
 - runtime/release gate 가 사용자 `.venv` 에 의존하지 않음
 - runtime image/compose 가 source import path 를 사용하지 않음
-- runtime progress stream endpoint 와 CLI consumer 존재
+- zeta4s 가 Airflow image 를 빌드·설정하지 않고 공식 Airflow service 가 zeta4s runtime state 를
+  mount 하지 않음
+- runtime progress stream endpoint 와 CLI consumer 존재, progress 출력의 event time 표시
 - `api run summary` report 저장 contract 와 stale deployment option
 - canonical showcase 의 존재, job 파일, 디렉터리 구조
 - runtime SQL template helper 를 쓰지 않음
+- secret 계약: runtime key 와 runtime-key endpoint, Airflow secrets backend 가 없고 master
+  keyring 이 공유 runtime state volume 밖에 있음
 
 ## Scheduler Boundary
 
@@ -210,7 +211,8 @@ explicit binding이 없는 task가 project/stage 자동 pool을 점유하고, ex
 ## Checkpoint Recovery
 
 Checkpoint recovery release gate는 scheduler가 실패한 실행 unit을 새 attempt로 다시 실행하고,
-zeta4s runtime이 이전 attempt의 committed checkpoint에서 이어 실행하는지를 확인하는 목표 gate다.
+zeta4s runtime이 이전 attempt의 committed checkpoint에서 이어 실행하는지를 확인한다. `checkpoint`
+compose profile 이 켜진 release gate 에서 기본으로 돈다.
 실행 절차와 판정 query의 정본은 `scripts/check_release_runtime_showcases.sh`다.
 
 Gate 는 source bind 없는 image 와 host wheel CLI 를 사용해 다음 증거가 한 run 에 함께 남는지 본다.
@@ -220,8 +222,10 @@ Gate 는 source bind 없는 image 와 host wheel CLI 를 사용해 다음 증거
 - 최종 output binding 이 기대한 전체 결과를 가리킨다.
 - downstream 확인 step 이 한 번 성공한다.
 
-Prefect 경로에서 주입하는 장애는 worker crash가 아니라 외부 data backend pause timeout이다. 위 증거가
-모두 남은 실행만 retry와 checkpoint resume의 결합을 통과한 것으로 판정한다.
+주입하는 장애는 worker crash가 아니라 외부 data backend(Elasticsearch) container pause다. 두
+scheduler 모두 core step을 `zeta4s-api`에서 실행하므로 scheduler worker를 죽이면 실제 runtime
+attempt에는 장애가 주입되지 않는다. 위 증거가 모두 남은 실행만 retry와 checkpoint resume의 결합을
+통과한 것으로 판정한다.
 
 ## Airflow Headless Boundary
 
@@ -251,8 +255,8 @@ Prefect 경로에서 주입하는 장애는 worker crash가 아니라 외부 dat
    결합이 돌아오는 대신 build 가 깨진다.
 2. Airflow service는 공식 image를 사용하고 zeta4s가 Airflow image를 빌드하지 않는다.
 3. `zeta4s-api` 에 `AIRFLOW__*` 가 하나도 없다. `AIRFLOW__DATABASE__SQL_ALCHEMY_CONN` 이
-   없으면 `create_session` 도 `airflow.settings.Session` 도 붙을 곳이 없다. anchor 가
-   `x-zeta4s-env` 와 `x-airflow-env` 로 갈려 있고 `zeta4s-api` 는 전자만 받는다.
+   없으면 `create_session` 도 `airflow.settings.Session` 도 붙을 곳이 없다. 환경 anchor 가
+   `x-zeta4s-env` 와 `x-airflow-common` 의 `airflow-env` 로 갈려 있고 `zeta4s-api` 는 전자만 받는다.
 4. Airflow와 `zeta4s-api`가 공유하는 것은 generated DAG 전용 volume뿐이다. Airflow는
    `zeta4s-state`와 `airflow-logs`의 zeta4s 측 mount를 통해 runtime state를 읽지 않는다.
 
@@ -295,7 +299,8 @@ trigger를 되살리는 호환 경로는 추가하지 않는다.
 
 ## Runtime State Ownership
 
-Airflow Connection 은 profile 로 관리되는 실행 설정이다. Scheduler pool 은 `zeta4s-api` 가
+Connection 은 workspace profile 로 관리되는 실행 설정이며 Airflow Connection 으로 projection 하지
+않는다. Scheduler pool 은 `zeta4s-api` 가
 Step Graph 에서 자동 산출해 선택한 backend 에 동기화하는 projection state 다. Scheduler UI 에서
 수동으로 state 를 변경하면 release gate 재현성이 떨어진다.
 

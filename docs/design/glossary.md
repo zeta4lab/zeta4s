@@ -14,11 +14,11 @@ zeta4s 를 구현하고 논의할 때 쓰는 개념 정의다. 각 개념의 상
 | Runtime data backend | `stage`, `dbt.run`, `<db>.sql`, `write` 가 table 을 만들거나 읽고 쓰는 실행 DB/target boundary. Profile connection 의 `type` 에서 해석한다 |
 | Runtime table adapter | StepOutput table 을 다루는 adapter. runtime data backend 별로 구현하며 현재 `clickhouse`, `oracle` 만 지원 |
 | Transform provider | transform 을 수행하는 step adapter. `dbt.run`, `clickhouse.sql`, `oracle.sql` 등 |
-| Step adapter | `steps[].type` 별 schema validation, Airflow task binding, runtime callable payload 를 책임지는 내장 adapter |
+| Step adapter | `steps[].type` 별 schema validation, 실행 매핑, runtime callable payload 를 책임지는 내장 adapter. scheduler task 바인딩은 type 과 무관한 generic 바인딩이다 |
 | Flow control | `depends_on`, `when.*`, `join.rule`, retry, timeout, skip/failure propagation 같은 실행 제어 contract |
-| Verification Runner | `zeta4s.core` 의 sequential Runner. `z4s run` 과 CI 계약 테스트 전용이며 의미론의 참조 구현. 병렬/재개/스케줄링/취소는 영구 비목표 |
+| Local runner | `zeta4s.core` 의 `LocalRunner`. `z4s run` 과 CI 계약 테스트용이며 의미론의 참조 구현. 위상 순서 병렬 실행과 graceful/hard stop 취소를 host process 안에서 제공하고, 재개/스케줄링은 비목표 |
 | Scheduler engine | `ExecutionPlan` 을 projection 해 step 실행 조율 기반을 소유하는 외부 orchestration runtime. Airflow 와 Prefect |
-| core-orchestrated / scheduler-projected | 실행 mode. 전자는 verification Runner 가 plan 전체를 순차 실행(검증 전용), 후자는 scheduler engine 이 조율하고 step 별로 core step 실행 경계를 호출(운영 실행) |
+| core-orchestrated / scheduler-projected | 실행 mode. 전자는 local runner 가 plan 전체를 host process 안에서 실행(로컬 실행), 후자는 scheduler engine 이 조율하고 step 별로 core step 실행 경계를 호출(운영 실행) |
 | Airflow Asset/Dataset | Airflow 의 cross-DAG event trigger 기능. 기본 실행 모델에서는 사용하지 않음 |
 
 `terminal step` 과 `Job run result` 는 다음 DAG 를 trigger 하기 위한 mechanism 이 아니다.

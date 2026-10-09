@@ -53,7 +53,7 @@ bash scripts/install_cli.sh \
 | `--index-url URL` | `PIP_INDEX_URL` | package index URL |
 | `--extra-index-url URL` | `PIP_EXTRA_INDEX_URL` | package extra index URL |
 | `--trusted-host HOST` | `PIP_TRUSTED_HOST` | pip trusted host |
-| `--with-dev` | 없음 | editable checkout 설치 시 `.[dev]` extras 포함 |
+| `--with-dev` | 없음 | editable checkout 설치 시 `.[cli,dev]` extras 로 설치 |
 | `--no-upgrade-pip` | 없음 | 설치 전 pip upgrade 생략 |
 | `--no-verify` | 없음 | 설치 후 `z4s --help` 검증 생략 |
 | `--dry-run` | 없음 | 실행할 명령만 출력 |

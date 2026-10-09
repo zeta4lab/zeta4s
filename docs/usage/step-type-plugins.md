@@ -2,9 +2,8 @@
 
 빌트인이 아닌 step type 은 별도 Python 패키지로 배포하고, 그 패키지를 실행 환경에 설치하는
 것으로 등록한다. **설치가 곧 등록이다** — profile 이나 project 에 나열하지 않는다. 설치된
-패키지가 `zeta4s.step_types` entry-point group 에 factory 를 선언하면, zeta4s 를 쓰는 모든
-프로세스(host CLI, API 서버, Airflow scheduler/worker, Prefect worker)가 검증·실행 이전에
-설치된 배포판을 discover 해 등록한다.
+패키지가 `zeta4s.step_types` entry-point group 에 factory 를 선언하면, step graph 를 검증하거나
+실행하는 프로세스(host CLI, API 서버)가 검증·실행 이전에 설치된 배포판을 discover 해 등록한다.
 
 등록된 외부 type 은 빌트인과 같은 Step Graph 계약(schema 검증, pool stage, 실행)을 통과한다.
 
@@ -44,11 +43,12 @@ def descriptors():
 
 플러그인 패키지는 외부 type 을 **검증하거나 실행하는 모든 환경**에 설치돼 있어야 한다.
 
-- runtime image(Airflow worker / Prefect worker): task 실행에 필요.
-- Airflow scheduler: DAG parse 시 `StepGraphJob` 검증에 필요.
-- API 서버: `z4s api deploy` 검증과 runtime-step API 실행에 필요.
+- API 서버(`zeta4s-api` image): `z4s api deploy` 검증과 runtime-step API 실행에 필요. Airflow
+  task 와 Prefect task 는 step 실행을 이 서버의 internal endpoint 에 위임하므로 Airflow
+  scheduler/worker 와 Prefect worker 는 플러그인을 로드하지 않는다.
 - host `z4s` CLI 환경: `z4s project check` / `z4s run` 이 외부 type 프로젝트를 정적 검증하려면
-  descriptor(특히 `schema_validator`)를 로드해야 하므로 필요.
+  descriptor(특히 `schema_validator`)를 로드해야 하므로 필요. `z4s run` 은 host 에서 step 도
+  실행한다.
 
 ## 계약 위반
 

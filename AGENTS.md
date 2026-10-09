@@ -50,17 +50,16 @@
   (`zeta4s.airflow`, `zeta4s.prefect`) 에 둔다.
 - 에이전트 검증에는 사용자 `.venv` 를 쓰지 않고 `uv` 로 만든 별도 가상환경을 쓴다.
 - Airflow 3.x import/workaround 패턴은 scheduler 동작을 검증하지 않고 바꾸지 않는다.
-- Airflow Connection/Pool 은 `zeta4s-api` 배포 흐름 또는 Secret Backend 로 관리되는 adapter
-  projection contract 로 본다.
+- Scheduler pool 은 `zeta4s-api` 배포 흐름이 동기화하는 adapter projection contract 로 본다.
+  connection credential 은 Airflow Connection 이나 Airflow secrets backend 로 넘기지 않고
+  `zeta4s-api` 가 profile 과 encrypted secret store 에서 resolve 한다.
 
 ## 검증 기준
 
 - Python 변경 후 최소 `uv run python -m compileall -q src/zeta4s` 와
   `uv run ruff check .`, `uv run ruff format .` 를 확인한다.
-- pull request 는 `.github/workflows/ci.yml` 이 Docker 없이 검증한다. `uv sync --locked`,
-  `uv run ruff check .`, `uv run ruff format --check .`, `uv run pytest`,
-  `scripts/check_static_cli_contract.sh`, `scripts/check_version_consistency.sh`,
-  `scripts/check_doc_contract.sh`, `scripts/check_wheel_install.sh` 다.
+- pull request 는 `.github/workflows/ci.yml` 이 Docker 없이 검증한다. 검증 단계 목록의
+  정본은 `ci.yml` 이다.
 - Docker stack 이 필요한 release gate 는 `.github/workflows/release-gate.yml` 이 scheduler
   backend 별로 pull request, main push, version tag, nightly 에서 실행한다.
 - 저장소는 공개이며 GitHub-hosted runner 만 쓴다. 공개 저장소에 self-hosted runner 를
@@ -74,7 +73,7 @@
   필요한 실행 동작을 `zeta4s-api` endpoint 와 CLI 명령으로 노출한다.
 - dbt step 이 있는 프로젝트에서 dbt model 을 바꾸면 `z4s project check` 로 dbt model
   contract 를 검증한다.
-- `clickhouse.sql`, `oracle.sql`, extract/load/write 만 쓰는 step graph 프로젝트에는 dbt
+- `clickhouse.sql`, `oracle.sql`, extract/stage/write 만 쓰는 step graph 프로젝트에는 dbt
   model 이나 generated source metadata 를 요구하지 않는다.
 - step graph contract 의 canonical input 은 `project.yml`, `jobs/*.yml`, SQL/dbt 파일이다.
 

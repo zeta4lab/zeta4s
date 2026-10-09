@@ -32,7 +32,7 @@ upstream rowset output -> target system
 
 ```yaml
 steps:
-  - id: write_sales_rows_to_clickhouse
+  - step_id: write_sales_rows_to_clickhouse
     type: clickhouse.write
     conn: clickhouse_target
     depends_on:
@@ -97,7 +97,8 @@ Upstream output 이름이 `schema.table` 형식이어도 `map` key 는 첫 번�
 - `settings`
 - `batch_size`
 
-`table` 은 `database.table` 형식으로 쓴다. project-local database 를 암묵적으로 붙이지 않는다.
+`table` 은 `table` 또는 `database.table` 형식으로 쓴다. database 를 생략하면 `conn` 의 기본 database 를
+쓰며, project-local database 를 암묵적으로 붙이지 않는다.
 `mode: upsert` 는 `key` 가 필요하다.
 
 ### Oracle target
@@ -181,16 +182,17 @@ Source rowset 을 만드는 upstream step 은 `depends_on` 에 명시한다.
 
 ```yaml
 steps:
-  - id: fetch_sales_rows
+  - step_id: fetch_sales_rows
     type: oracle.extract
     conn: oracle_source
     source:
+      kind: query
       query: sql/oracle/fetch_sales.sql
     output:
       sales_rows:
         kind: rowset
 
-  - id: write_sales_rows_to_clickhouse
+  - step_id: write_sales_rows_to_clickhouse
     type: clickhouse.write
     conn: clickhouse_target
     depends_on:
@@ -273,10 +275,8 @@ rowset 을 같은 backend 로 write 할 때만 source-native type hint 를 보�
 ## 제약
 
 - `write` step 은 graph output 을 만들지 않는다.
-- `map` entry 는 1개 이상이어야 한다.
+- `map` entry 는 정확히 1개여야 한다.
 - `map` entry source 는 rowset output 이어야 한다.
-- 한 `write` step 안의 모든 `map` entry 는 같은 target type 과 같은 `conn` 을 사용한다.
-- `map` entry 별 target table 은 서로 달라야 한다.
 - `columns` 는 source rowset schema 에 존재해야 한다.
 - `mode` 는 각 `map` entry target spec 에 둔다.
 - `mode: merge` 는 허용하지 않는다.

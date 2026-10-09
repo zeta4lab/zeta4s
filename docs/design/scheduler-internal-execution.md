@@ -13,7 +13,7 @@ identity가 아니다.
 Airflow용 standalone source는 Python 표준 라이브러리와 Airflow package만 import한다. Generated
 task는 project, artifact, profile, job, step, run, attempt와 parameters를 common internal runtime
 endpoint로 전달한다. SQL, connection metadata, password, runtime implementation은 generated
-source에 넣지 않는다. Prefect worker는 같은 runtime facade를 process 안에서 호출한다.
+source에 넣지 않는다. Prefect worker의 step task도 같은 common internal runtime endpoint를 호출한다.
 
 ## Internal API Boundary
 

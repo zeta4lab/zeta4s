@@ -31,6 +31,7 @@ workspace 를 만든다.
 bash scripts/install_cli.sh
 .venv/bin/z4s --help
 .venv/bin/z4s work init
+.venv/bin/z4s profile init dev
 ```
 
 새 프로젝트 skeleton 을 만든다.
@@ -49,6 +50,7 @@ bash scripts/install_cli.sh
 
 ```bash
 bash scripts/configure_open_env.sh --force
+bash scripts/build_images.sh --load
 docker compose --env-file .env --profile airflow --profile prefect --profile asset --profile checkpoint up -d
 .venv/bin/z4s api connect local --url http://127.0.0.1:18088
 .venv/bin/z4s api bootstrap --api local
@@ -58,11 +60,12 @@ docker compose --env-file .env --profile airflow --profile prefect --profile ass
 프로젝트를 API 에 배포한다.
 
 ```bash
-.venv/bin/z4s api deploy my_project --profile dev --api local
+.venv/bin/z4s api deploy my_project --profile dev
 ```
 
 `jobs/*.yml` 의 schedule 배포도 이 명령에 포함되며 profile의 `scheduler`가 Airflow 또는
-Prefect를 선택한다. 별도 `z4s schedule` 명령 그룹은 제공하지 않는다.
+Prefect를 선택한다. 별도 `z4s schedule` 명령 그룹은 제공하지 않는다. 배포 대상 API 는 profile 의
+`api_endpoint` 가 있으면 그것을, 없으면 `z4s api connect` 로 저장한 기본 API 를 쓴다.
 
 `z4s api` 명령은 장시간 작업의 주요 단계를 timestamp, step index, step name, status 로 출력한다.
 
@@ -75,10 +78,8 @@ Prefect를 선택한다. 별도 `z4s schedule` 명령 그룹은 제공하지 않
 - 운영 scheduler backend 는 Airflow와 Prefect이며, project 배포에 사용한 backend를 metastore에
   저장해 배포 해제에도 같은 backend를 사용한다.
 - Data plane 은 project step graph 와 workspace profile connection 으로 결정한다.
-- 지원 step adapter 는 `noop`, `oracle.extract`, `clickhouse.extract`, `elasticsearch.extract`,
-  `clickhouse.stage`, `oracle.stage`, `http.lookup`, `dbt.run`, `dbt.test`, `sql.scalar`,
-  `clickhouse.write`, `oracle.write`, `elasticsearch.write`, `elasticsearch.command`, `sql.check`,
-  `oracle.sql`, `clickhouse.sql`, `oracle.call` 이다.
+- 내장 step type 목록의 정본은 `src/zeta4s/project/step_graph.py` 의 `_STEP_TYPE_SPECS` 다.
+  step type 별 사용법은 [docs/usage/step-types](docs/usage/step-types) 에 있다.
 - 검증은 installed package Docker stack 기준으로 수행한다.
 
 ## Docker Volume Reset
