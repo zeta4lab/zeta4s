@@ -704,7 +704,7 @@ def rebuild_step_type_tables(external: dict[str, StepTypeDescriptor]) -> None:
 class ScheduleConfig(BaseModel):
     cron: str | None = None
     interval_seconds: int | None = Field(default=None, gt=0)
-    timezone: str
+    timezone: str | None = None
     paused: bool = False
 
     model_config = {"extra": "forbid"}
@@ -721,7 +721,9 @@ class ScheduleConfig(BaseModel):
 
     @field_validator("timezone")
     @classmethod
-    def _v_timezone(cls, value: str) -> str:
+    def _v_timezone(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         normalized = value.strip()
         try:
             ZoneInfo(normalized)
@@ -734,6 +736,14 @@ class ScheduleConfig(BaseModel):
         if (self.cron is None) == (self.interval_seconds is None):
             raise ValueError("schedule requires exactly one of cron or interval_seconds")
         return self
+
+    def effective_timezone(self, project_timezone: str) -> str:
+        """scheduler 가 cron/interval 을 해석할 IANA timezone 을 돌려준다.
+
+        job `schedule.timezone` 이 있으면 그것을, 없으면 project `timezone` 을 쓴다.
+        Airflow 와 Prefect projection 은 모두 이 함수로 같은 값을 얻는다.
+        """
+        return self.timezone or project_timezone
 
 
 class StepGraphJob(BaseModel):

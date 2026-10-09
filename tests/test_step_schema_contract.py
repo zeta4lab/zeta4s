@@ -9,10 +9,20 @@ import yaml
 from zeta4s.project.bundle import validate_project_configs
 from zeta4s.project.execution_plan import build_step_graph_execution_plan
 from zeta4s.project.extract_sql import load_extract_sql
-from zeta4s.project.step_graph import STEP_TYPE_VALUES, StepGraphStep, validate_step_graph_config
+from zeta4s.project.step_graph import STEP_TYPE_VALUES, ScheduleConfig, StepGraphStep, validate_step_graph_config
 
 
 class StepSchemaContractTest(unittest.TestCase):
+    def test_schedule_timezone_is_optional_and_falls_back_to_project_timezone(self) -> None:
+        inherited = ScheduleConfig(cron="0 2 * * *")
+        explicit = ScheduleConfig(cron="0 2 * * *", timezone=" Europe/Berlin ")
+
+        self.assertIsNone(inherited.timezone)
+        self.assertEqual(inherited.effective_timezone("Asia/Seoul"), "Asia/Seoul")
+        self.assertEqual(explicit.effective_timezone("Asia/Seoul"), "Europe/Berlin")
+        with self.assertRaisesRegex(ValueError, "unsupported schedule.timezone"):
+            ScheduleConfig(cron="0 2 * * *", timezone="Mars/Olympus")
+
     def test_canonical_extract_stage_contract_passes(self) -> None:
         config = {
             "job_id": "orders",

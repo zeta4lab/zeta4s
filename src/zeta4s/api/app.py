@@ -794,6 +794,7 @@ def _deploy_prefect_jobs(
                 deploy_prefect_job(
                     identity=identity,
                     plan=scheduled_plan,
+                    project_timezone=project.timezone,
                     artifact_id=artifact_id,
                 )
             )

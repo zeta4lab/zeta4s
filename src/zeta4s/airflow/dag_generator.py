@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.sdk import DAG
@@ -23,7 +24,7 @@ from zeta4s.project.step_types import register_installed_step_types
 
 DEFAULT_ARGS = {
     "owner": "zeta4s",
-    "start_date": datetime(2026, 1, 1),
+    "start_date": datetime(2026, 1, 1, tzinfo=timezone.utc),
 }
 DAG_MAX_ACTIVE_RUNS = 1
 
@@ -47,10 +48,14 @@ def _validate_or_raise(model_cls: type[BaseModel], config: dict):
         ) from e
 
 
-def _dag_default_args(project: ProjectContext) -> dict:
+def _dag_default_args(project: ProjectContext, schedule_timezone: str) -> dict:
+    # Airflow 는 timezone-aware start_date 의 tzinfo 를 DAG timezone 으로 쓰고 cron/interval
+    # timetable 을 그 timezone 에서 해석한다.
     default_args = dict(DEFAULT_ARGS)
-    if project.registered_at is not None:
-        default_args["start_date"] = project.registered_at
+    start_date = project.registered_at or default_args["start_date"]
+    if start_date.tzinfo is None:
+        start_date = start_date.replace(tzinfo=timezone.utc)
+    default_args["start_date"] = start_date.astimezone(ZoneInfo(schedule_timezone))
     return default_args
 
 
@@ -60,11 +65,12 @@ def _make_dag(
     tags: list[str],
     project: ProjectContext,
     *,
+    schedule_timezone: str,
     paused: bool = False,
 ) -> DAG:
     dag = DAG(
         dag_id=job_id,
-        default_args=_dag_default_args(project),
+        default_args=_dag_default_args(project, schedule_timezone),
         schedule=schedule,
         catchup=False,
         max_active_runs=DAG_MAX_ACTIVE_RUNS,
@@ -165,6 +171,7 @@ def _generate_execution_plan_dag(project: ProjectContext, plan: ExecutionPlan, *
         _resolve_step_graph_schedule(plan.schedule),
         tags=_dag_tags(project, "step-graph"),
         project=project,
+        schedule_timezone=plan.schedule.effective_timezone(project.timezone) if plan.schedule else project.timezone,
         paused=plan.schedule.paused if plan.schedule else False,
     )
     with dag:

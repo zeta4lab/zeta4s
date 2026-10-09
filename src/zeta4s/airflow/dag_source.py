@@ -71,6 +71,7 @@ def render_airflow_dag_source(
         "profile_id": profile_id,
         "job_id": job_id,
         "start_date": (project.registered_at.isoformat() if project.registered_at else "2026-01-01T00:00:00+00:00"),
+        "timezone": _schedule_timezone(plan.schedule, project.timezone),
         "schedule": _schedule_value(plan.schedule),
         "paused": bool(plan.schedule.paused) if plan.schedule else False,
         "tasks": [_task_spec(project_id, plan, step) for step in plan.steps],
@@ -96,6 +97,12 @@ def _task_spec(project_id: str, plan: Any, step: Any) -> dict[str, Any]:
         "trigger_rule": trigger_rule,
         "upstream_ids": list(plan.upstream_ids_by_step[step.id]),
     }
+
+
+def _schedule_timezone(schedule: Any, project_timezone: str) -> str:
+    if schedule is None:
+        return project_timezone
+    return schedule.effective_timezone(project_timezone)
 
 
 def _schedule_value(schedule: Any) -> str | None:
@@ -130,6 +137,7 @@ import json
 import os
 import urllib.error
 import urllib.request
+from zoneinfo import ZoneInfo
 
 from airflow.exceptions import AirflowSkipException
 from airflow.providers.standard.operators.python import PythonOperator
@@ -192,13 +200,16 @@ def _finalize():
     return result
 
 
+# Airflow derives the DAG timezone from a timezone-aware start_date, and the
+# cron/interval timetable is evaluated in that timezone.
+start_date = datetime.fromisoformat(SPEC["start_date"]).astimezone(ZoneInfo(SPEC["timezone"]))
 schedule = SPEC["schedule"]
 if isinstance(schedule, str) and schedule.startswith("@continuous:"):
     schedule = timedelta(seconds=int(schedule.split(":", 1)[1]))
 
 with DAG(
     dag_id=SPEC["dag_id"],
-    default_args={"owner": "zeta4s", "start_date": datetime.fromisoformat(SPEC["start_date"])},
+    default_args={"owner": "zeta4s", "start_date": start_date},
     schedule=schedule,
     catchup=False,
     max_active_runs=1,

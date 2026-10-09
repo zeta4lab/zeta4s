@@ -24,9 +24,10 @@ paths:
   dbt: dbt
 ```
 
-`timezone` 은 project 의 business timezone 이며 필수 IANA timezone 값이다. 현재 runtime 은 이 값으로
-step parameter 를 재해석하지 않고, 배포되는 Airflow DAG 의 timezone 에도 적용하지 않는다. 시간 parameter 는
-작성한 값 그대로 bind 된다.
+`timezone` 은 project 의 business timezone 이며 필수 IANA timezone 값이다. job `schedule` 이
+`timezone` 을 선언하지 않으면 scheduler 는 이 값으로 cron/interval 을 해석한다. Airflow 와 Prefect 는
+같은 규칙을 따른다. Step 의 시간 parameter 는 이 값으로 재해석하지 않고 작성한 값 그대로 bind 한다.
+Metadata 저장과 DB 비교용 instant 는 UTC 로 정규화한다.
 
 `paths.jobs`, `paths.dbt` 는 필수이며 project 내부 상대 경로여야 한다. 기본 skeleton 은 각각
 `jobs`, `dbt` 를 사용한다.
@@ -69,8 +70,9 @@ steps:
 
 - `job_id`: project 안에서 유일한 job identity
 - `steps[].step_id`: job 안에서 유일한 logical step identity
-- `schedule`: 예약 실행 정의 또는 `null`. `cron`/`interval_seconds` 중 정확히 하나와
-  `timezone` 을 선언하며 `paused` 기본값은 `false` 다.
+- `schedule`: 예약 실행 정의 또는 `null`. `cron`/`interval_seconds` 중 정확히 하나를 선언하며
+  `paused` 기본값은 `false` 다. `timezone` 은 선택 IANA timezone 이며 scheduler 가 cron/interval 을
+  해석하는 기준이다. 생략하면 `project.yml` 의 `timezone` 을 쓴다.
 - `steps[]`: 실행 가능한 step 목록
 - `steps[].depends_on`: 명시 control dependency
 - `steps[].when.success`, `when.failed`, `when.expr`: 조건부 실행
