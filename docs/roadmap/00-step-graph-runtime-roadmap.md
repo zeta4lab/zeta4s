@@ -41,6 +41,9 @@ Runtime Engine 이 되는 것이다.
 - **Workspace** — 다중 workspace 컨텍스트와 profile 단위 `api_endpoint` 를 지원한다.
 - **Secret** — secret 은 AESGCM256 세대 keyring 으로 암호화하고 CAS 재암호화로 회전한다.
   keyring 은 `zeta4s-api` 만 읽는다.
+- **Scheduler runtime 입력** — Prefect worker 와 generated Airflow DAG 은 internal API endpoint 와
+  internal token 만 받고 runtime state volume 을 mount 하지 않는다. compose 와 k3s 의 worker 입력
+  선언은 gate 가 대조한다.
 - **배포** — Docker compose 가 로컬 검증 계약이고 `deploy/k3s/` 가 단일 노드 k3s 배포 계약이다.
 
 ## Backlog

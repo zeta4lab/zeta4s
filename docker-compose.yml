@@ -297,8 +297,9 @@ services:
         mkdir -p /var/lib/zeta4s/artifacts /var/lib/zeta4s/registered /var/lib/zeta4s/runs
         chown -R "${ZETA4S_RUNTIME_UID:-50000}:0" /var/lib/zeta4s
         chmod -R ug+rwX /var/lib/zeta4s
-        # keyring 은 runtime state volume 밖이다. Prefect worker 가 그 volume 을
-        # 공유하므로 같은 곳에 두면 worker 가 master key 를 읽을 수 있다.
+        # keyring 은 runtime state volume 밖이다. 같은 곳에 두면 state volume 을 받는
+        # 배포 단위가 곧 master key 를 읽는 배포 단위가 된다. 지금 그것을 받는 것은
+        # zeta4s-api 하나지만, 경계는 mount 목록이 아니라 경로가 지켜야 한다.
         mkdir -p /var/lib/zeta4s-keyring
         if [ ! -f /var/lib/zeta4s-keyring/master.json ]; then
           python -c 'from pathlib import Path; from zeta4s.runtime.secrets import init_master_key_file; init_master_key_file(Path("/var/lib/zeta4s-keyring/master.json"))'
@@ -415,7 +416,7 @@ services:
     # 이미지·환경·볼륨·UID·작업 디렉토리를 갖는다. engine 이미지 안에 zeta4s 가 들어가면
     # 의존 방향이 뒤집힌다.
     image: ${ZETA4S_API_IMAGE:?Set ZETA4S_API_IMAGE by running scripts/configure_open_env.sh}
-    # zeta4s-api와 Prefect worker가 공유하는 runtime state의 UID를 맞춘다.
+    # runtime state 를 소유하는 UID 다. z4s-state-init 이 이 값으로 chown 한다.
     user: "${ZETA4S_RUNTIME_UID:-50000}:0"
     working_dir: /opt/zeta4s
     environment:
@@ -517,19 +518,21 @@ services:
     entrypoint: prefect
     command: ["worker", "start", "--pool", "zeta4s-internal", "--type", "process", "--create-pool-if-not-found"]
     environment:
-      <<: *zeta4s-env
+      # x-zeta4s-env 를 상속하지 않는다. 앵커는 zeta4s-api 가 받는 배포 입력의 묶음이고
+      # worker 는 그 배포 단위가 아니다. 상속을 두면 앵커에 항목이 늘 때마다 worker 권한이
+      # 함께 늘어나며, 그 순간에는 아무도 그것을 결정하지 않는다.
+      #
+      # worker 의 flow entrypoint 는 step 실행과 finalize 를 internal API 로 위임하므로
+      # metastore 자격증명, iceberg token, public API token 을 쓰지 않는다.
+      # k3s 배선(deploy/k3s/patches/prefect-worker.yaml)이 주는 것과 같다.
+      ZETA4S_API_INTERNAL_URL: http://zeta4s-api:8088
+      ZETA4S_RUNTIME_INTERNAL_TOKEN: ${ZETA4S_RUNTIME_INTERNAL_TOKEN:?Set ZETA4S_RUNTIME_INTERNAL_TOKEN by running scripts/configure_open_env.sh}
       PREFECT_API_URL: http://prefect-server:4200/api
-      PREFECT_HOME: /var/lib/prefect
-      ZETA4S_API_HOME: /var/lib/zeta4s
-    volumes:
-      - zeta4s-state:/var/lib/zeta4s
-      - prefect-data:/var/lib/prefect
+    # volume 을 받지 않는다. runtime state 는 zeta4s-api 가 소유하고 worker 는 파일로 읽거나
+    # 쓰지 않는다. PREFECT_HOME 은 기본값(홈 디렉토리)이며 worker 는 상태를 파일로 갖지
+    # 않으므로 prefect-server 와 volume 을 공유할 이유도 없다.
     depends_on:
       prefect-server:
-        condition: service_healthy
-      z4s-state-init:
-        condition: service_completed_successfully
-      postgres:
         condition: service_healthy
     profiles: [prefect]
 
