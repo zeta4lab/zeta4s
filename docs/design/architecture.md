@@ -31,8 +31,7 @@ docs/              문서
 `core`, `project`, `runtime` 은 `airflow` 와 `prefect` 를 import 하지 않는다. 이 경계는
 pytest 가 강제한다. 상세는 `../gate/README.md` 의 Scheduler Boundary 절에 있다.
 
-Prefect adapter 는 `zeta4s.prefect` 에 둔다. 과거 `zeta4s.scheduler` 호환 package 는 두지
-않으며, 이 rename 과 함께 더 넓은 module 재배치는 하지 않는다.
+Prefect adapter 는 `zeta4s.prefect` 에 둔다.
 
 ## Technology Stack
 

@@ -259,7 +259,7 @@ def run_external_lookup(
     external API lookup and skips API failed rows with log/metrics only.
     """
     if kwargs.get("failure_policy") is not None:
-        raise ValueError("http.lookup.failure_policy is no longer supported")
+        raise ValueError("http.lookup does not support failure_policy")
     context = _current_context(kwargs)
     with result_context("http.lookup", context) as (started_at, start_monotonic):
         metrics = _run_external_lookup_impl(

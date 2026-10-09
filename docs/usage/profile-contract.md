@@ -229,5 +229,5 @@ connections:
 ```
 
 `password_ref` is a zeta4s secret key. It is not a password value and is not an
-Airflow metastore connection field. Project steps continue to reference only the
-logical `conn` id.
+Airflow metastore connection field. Project steps reference only the logical
+`conn` id.

@@ -224,7 +224,7 @@ steps:
 
 위 step 은 `dbt/clickhouse_mart/` 의 dbt project 를 실행한다.
 
-현재 계약에서도 step YAML 에 dbt SQL 을 쓰지 않는다. dbt SQL 은 해당 `dbt/<conn>/models/` 아래에 둔다.
+현재 계약에서 step YAML 에 dbt SQL 을 쓰지 않는다. dbt SQL 은 해당 `dbt/<conn>/models/` 아래에 둔다.
 
 ## Result/metrics
 

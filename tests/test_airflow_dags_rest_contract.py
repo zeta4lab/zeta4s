@@ -1,7 +1,6 @@
 """dags.py 의 REST 경로 계약 검사.
 
-metastore 경로와 REST 경로는 없는 DAG 을 다르게 다룬다. metastore 는 행이 없을 뿐이고
-REST 는 404 다. 이 차이를 흡수하지 않으면 undeploy 처럼 DAG 을 지운 뒤 남은 run 을
+REST 는 없는 DAG 에 404 를 낸다. 이를 빈 결과로 흡수하지 않으면 undeploy 처럼 DAG 을 지운 뒤 남은 run 을
 확인하는 흐름이 터진다.
 """
 
@@ -56,7 +55,7 @@ def _client(routes: dict[str, object]) -> AirflowRestClient:
 
 class MissingDagIsEmptyNotErrorTest(unittest.TestCase):
     def test_active_dag_run_rows_treats_missing_dag_as_empty(self) -> None:
-        # 실측 회귀: REST 는 없는 DAG 의 dagRuns 에 404 를 낸다.
+        # REST 는 없는 DAG 의 dagRuns 에 404 를 낸다.
         client = _client({"/dagRuns": 404})
         self.assertEqual(dags._active_dag_run_rows_via_rest(client, ["gone"]), [])
 
@@ -146,7 +145,7 @@ class DeploymentIdentityDiscoveryTest(unittest.TestCase):
 class RestIsRequiredTest(unittest.TestCase):
     """조회와 상태 변경 모두 metastore 폴백이 없다.
 
-    폴백이 남아 있으면 REST 환경변수가 빠졌을 때 조용히 metastore 로 새고, headless 가
+    폴백이 있으면 REST 환경변수가 빠졌을 때 조용히 metastore 로 새고, headless 가
     아닌 상태를 아무 신호 없이 되돌린다. 붙을 곳이 없으면 실패해야 한다.
     """
 

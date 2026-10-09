@@ -13,7 +13,7 @@
 `extract` 는 transform 이 읽을 DB table 을 만들지 않는다. DB table 로 고정하는 책임은 후속 `stage`
 step 이 가진다.
 
-1.0.0 공식 지원 backend/source 범위는 Oracle, ClickHouse, Elasticsearch 다. 현재 로컬/검증 스택의
+지원 backend/source 범위는 Oracle, ClickHouse, Elasticsearch 다. 현재 로컬/검증 스택의
 기본 metastore는 PostgreSQL이며 ClickHouse metastore adapter는 선택 backend다. 이는
 `clickhouse.stage`, `clickhouse.sql`, dbt target으로 쓰는 runtime data backend 역할과 독립적이다.
 
@@ -477,7 +477,7 @@ order by watermark_ts
 ```
 
 Metastore 는 마지막 watermark, extract history 같은 zeta4s metadata 를 저장한다. 현재 로컬/검증
-스택은 ClickHouse 를 metastore 구현체로 사용한다.
+스택의 기본 metastore 구현체는 PostgreSQL 이다.
 
 ## 실행 종속
 

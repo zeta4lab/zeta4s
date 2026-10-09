@@ -1,9 +1,7 @@
 # zeta4s
 
 zeta4s 는 AI Agent 가 생성한 계약(Contract)을 Step Graph 로 실행하는 범용 Runtime Engine 이다.
-1.0.0 은 이 Runtime Engine 의 contract authoring, validation, deploy, execution boundary 를
-고정한 첫 내부 구현 기준선이다. Roadmap version tag 는 구현 묶음의 표식이며 정식 공개
-릴리즈나 하위호환 보장을 뜻하지 않는다.
+version tag 는 구현 묶음의 표식이며 하위호환 보장을 뜻하지 않는다.
 
 현재 canonical project contract 는 `project.yml`, `jobs/*.yml`, SQL/dbt 파일이다.
 실행 connection 은 workspace `profiles/` 에서 관리한다.

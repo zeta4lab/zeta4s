@@ -3,8 +3,8 @@
 ## 목표
 
 내장 `steps[].type` 구현을 두 registry 경계 — project 선언 정본과 core 실행 매핑 — 으로
-정리한다. 이 작업은 외부 플러그인 SDK 를 만드는 일이 아니다. 내장 step type 의 schema
-validation, 실행 매핑, runtime payload, result contract 를 한 곳에서 추적 가능하게 만든다.
+정리한다. 이 경계는 외부 플러그인 SDK 가 아니다. 내장 step type 의 schema
+validation, 실행 매핑, runtime payload, result contract 를 한 곳에서 추적 가능하게 한다.
 
 scheduler 바인딩은 type 별 코드를 요구하지 않는다. 모든 step type 은 동일한 generic task
 바인딩으로 실행되고, type 별 실행 dispatch 는 task 프로세스 안 core executor 가 수행한다.
@@ -35,7 +35,7 @@ builder registry, runtime callable facade, runtime implementation 의 경계를 
 - plugin SDK 배포 (`zeta4s-plugin-sdk`)
 - third-party adapter compatibility policy (descriptor 계약 버전 range)
 - plugin validation CLI (`z4s plugin check` 류)
-- Airflow Dataset/Asset trigger 재도입
+- Airflow Dataset/Asset trigger
 - runtime 중 동적 step 생성
 - generated dbt source metadata 또는 `sources_raw.yml` 생성
 
@@ -63,7 +63,7 @@ src/zeta4s/airflow/operators.py     # run_core_step facade
 `core_step_operator` 를 정의한다. type 별 adapter 클래스나 registry 는 없다 — 모든 step type 이
 같은 `core_step_operator` 로 바인딩된다.
 
-## DAG Generator 변경
+## DAG Generator
 
 `dag_generator.py` 는 다음 책임만 가진다.
 
@@ -88,7 +88,7 @@ binding = _apply_step_graph_trigger_rule(binding, step)
 
 ## Runtime Callable Boundary
 
-`zeta4s.airflow.operators` 는 계속 facade 로 둔다. `step_binding.py` 는 `run_core_step` facade
+`zeta4s.airflow.operators` 는 facade 로 둔다. `step_binding.py` 는 `run_core_step` facade
 callable 을 참조하고, facade 함수 내부에서 `built_in_step_executor` 로 실제 executor 를 조립해
 `zeta4s.runtime.*` implementation 을 import 한다.
 
@@ -107,8 +107,8 @@ runtime result 에 대해 각 step type 은 다음 정보를 문서화한다.
 - `outputs`: `when.expr` 와 후행 step metadata 에 노출할 scalar/table output
 - failure message convention
 
-result writer 를 새로 만들지 않는다. 기존 `record_success`, `result_context`,
-task result note 경계를 유지하고 step type 별 기대 result shape 를 문서화한다.
+result 기록은 `record_success`, `result_context`, task result note 경계를 쓰고 step type 별
+기대 result shape 를 문서화한다.
 
 ## Step Type Input/Output Contract
 
@@ -138,8 +138,7 @@ Step type 별 YAML 계약은 이 문서에 중복해서 적지 않는다. 중복
 - `bash scripts/check_static_cli_contract.sh`
 - 목표 contract showcase 에 대해 `z4s project check`
 - Airflow DAG parse 경로가 runtime implementation module 을 직접 import 하지 않음
-- `dag_generator.py` 가 per-type adapter registry(`builtin_step_adapters`/`step_adapters`)
-  없이 generic `core_step_operator` 로만 바인딩함
+- `dag_generator.py` 가 type 별 adapter registry 없이 generic `core_step_operator` 로만 바인딩함
 - release DAG run matrix 가 release gate 에서 통과함
 
 ## 외부 Step Type 등록 (설치 = 등록)

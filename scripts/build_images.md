@@ -7,8 +7,8 @@ zeta4s가 빌드하는 image는 `zeta4s-api` 하나다. Airflow와 Prefect serve
 공식 image를 그대로 사용한다. `docker/zeta4s-api/Dockerfile`은 `zeta4s-api` distribution을
 설치하며 airflow package를 포함하지 않는다.
 
-`zeta4s-api` 이미지는 build 마지막에 `import airflow` 가 실패하는지 확인한다. 누가 의존을
-되살리면 배포된 뒤 조용히 결합이 돌아오는 대신 build 가 깨진다.
+`zeta4s-api` 이미지는 build 마지막에 `import airflow` 가 실패하는지 확인한다. airflow 의존이
+들어오면 배포된 뒤 조용히 결합되는 대신 build 가 깨진다.
 
 ## 기본 사용법
 

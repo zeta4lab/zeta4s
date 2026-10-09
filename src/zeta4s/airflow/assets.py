@@ -80,8 +80,8 @@ def _pool_entity(payload: dict[str, Any]) -> dict[str, Any]:
     """zeta4s payload 를 PoolBody 로 바꾼다.
 
     payload 는 stage 처럼 zeta4s 안에서만 쓰는 field 를 싣고 다니는데 PoolBody 는
-    additionalProperties 를 막아 두어 그대로 보내면 422 다. metastore 경로도 Pool 을
-    만들 때 필요한 것만 골라 썼다. 경계를 넘을 때 field 를 고르는 것은 같다.
+    additionalProperties 를 막아 두어 그대로 보내면 422 다. 경계를 넘을 때 PoolBody 가 받는
+    field 만 고른다.
     """
     entity: dict[str, Any] = {"name": payload["name"], "slots": payload["slots"]}
     description = payload.get("description")

@@ -67,8 +67,7 @@ while IFS= read -r file; do
 done < <(rg -lN '^project_version\(\)' scripts)
 
 # 위 검사는 project_version 정의 본문만 본다. usage 문자열, 문서, workflow 주석에 남은
-# 낡은 서술은 코드가 아니라 잡히지 않는다. 실제로 single source 전환 때 script 본문만
-# 고치고 그 세 곳을 놓쳤다. pyproject 를 version 출처로 지목하는 표현을 금지한다.
+# 서술은 코드가 아니라 잡히지 않는다. pyproject 를 version 출처로 지목하는 표현을 금지한다.
 stale_version_source="$(rg -nN -g '!scripts/check_version_consistency.sh' \
   'pyproject[^\n]{0,24}\bproject\.version\b|zeta4s:<pyproject\.toml version>|tag 명과 pyproject version' \
   scripts docs .github || true)"

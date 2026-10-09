@@ -50,12 +50,12 @@ def _list_zeta4s_dags_via_rest(
     rows = client.collect(
         "/api/v2/dags",
         items_key="dags",
-        # tag 를 모두 만족하는 DAG 만 본다. metastore 경로의 join 필터와 같다.
+        # tag 를 모두 만족하는 DAG 만 본다.
         query={
             "tags": tags,
             "tags_match_mode": "all",
-            # metastore 경로는 stale 여부를 보지 않는다. REST 기본값은 stale 을 빼므로
-            # 그대로 두면 purge 대상 DAG 이 목록에서 사라진다.
+            # stale 여부와 무관하게 본다. REST 기본값은 stale 을 빼므로 그대로 두면
+            # purge 대상 DAG 이 목록에서 사라진다.
             "exclude_stale": False,
         },
     )
@@ -135,7 +135,7 @@ def dag_paused_states(dag_ids: list[str]) -> dict[str, bool | None]:
 
 
 def _dag_paused_states_via_rest(client: AirflowRestClient, dag_ids: list[str]) -> dict[str, bool | None]:
-    """dag_id 별로 조회한다. 없는 DAG 은 None 이다 — metastore 경로에서 행이 없는 것과 같다.
+    """dag_id 별로 조회한다. 없는 DAG 은 None 이다.
 
     목록 조회로 한 번에 받는 방법도 있으나 REST 에는 dag_id 목록 필터가 없어 zeta4s DAG
     전체를 페이징해야 한다. 이 함수는 converge 폴링이 2초마다 부르므로 대상만 짚는다.
@@ -260,8 +260,7 @@ def _collect_or_empty(
 ) -> list[dict[str, object]]:
     """없는 DAG 은 빈 목록이다.
 
-    REST 는 없는 DAG 에 404 를 내지만 metastore 경로는 행이 없을 뿐 오류가 아니다.
-    undeploy 는 DAG 을 지운 뒤에도 남은 run 을 확인하므로 404 를 오류로 두면 터진다.
+    REST 는 없는 DAG 에 404 를 내지만 호출부에게 없는 DAG 은 오류가 아니다. undeploy 는 DAG 을 지운 뒤에도 남은 run 을 확인하므로 404 를 오류로 두면 터진다.
     """
     try:
         return client.collect(path, items_key=items_key, query=query)
@@ -306,7 +305,7 @@ def _active_task_instance_rows_via_rest(client: AirflowRestClient, dag_ids: list
         rows.extend(
             {
                 "dag_id": row.get("dag_id"),
-                # metastore 경로는 run_id 로 돌려준다. REST 는 dag_run_id 다.
+                # 호출부는 run_id 로 읽는다. REST 는 dag_run_id 다.
                 "run_id": row.get("dag_run_id"),
                 "task_id": row.get("task_id"),
                 "map_index": row.get("map_index"),
@@ -408,7 +407,7 @@ def _delete_dag(dag_id: str) -> None:
     try:
         client.delete(path)
     except AirflowRestError as error:
-        # 이미 없으면 목표 상태와 같다. CLI 는 없는 DAG 에 실패했지만 삭제는 멱등이 맞다.
+        # 이미 없으면 목표 상태와 같다. 삭제는 멱등이어야 한다.
         if error.status == 404:
             return
         raise RuntimeError(f"failed to delete Airflow DAG {dag_id}: {error}") from error

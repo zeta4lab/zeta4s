@@ -66,9 +66,8 @@ z4s api secret keyring rotate --api <alias>
 `remaining_by_key_id`가 비면 모든 active secret이 새 세대다. 중단되어도 안전하니 남은 것이
 있으면 다시 실행한다.
 
-`without_generation`에 secret 이름이 있으면 그 row는 `key_id`가 없어 재암호화할 수 없다.
-이 변경 이전에 만든 데이터이며 조회도 거절된다. 해당 secret을 다시 설정한 뒤 회전을 마쳐야
-옛 세대를 안전하게 지울 수 있다.
+`without_generation`에 secret 이름이 있으면 그 row는 `key_id`가 없어 재암호화할 수 없고
+조회도 거절된다. 해당 secret을 다시 설정한 뒤 회전을 마쳐야 옛 세대를 안전하게 지울 수 있다.
 
 ### 3. 옛 세대를 제거한다
 
@@ -77,15 +76,6 @@ z4s api secret keyring rotate --api <alias>
 
 **확인 전에 지우면 그 세대로 암호화된 secret을 영영 복호화할 수 없다.** `rotate`는 남은
 세대가 있으면 0이 아닌 코드로 끝나므로 스크립트에서 그대로 판정에 쓸 수 있다.
-
-## 기존 스택 주의
-
-`key_id` 없는 secret row는 거절된다. 이 변경 이전에 만든 개발 스택은 모든 row가 그 상태이므로
-secret을 다시 설정하거나 volume을 초기화해야 한다.
-
-```bash
-docker compose --env-file .env down -v --remove-orphans
-```
 
 ## 제약
 

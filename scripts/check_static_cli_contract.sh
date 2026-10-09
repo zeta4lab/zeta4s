@@ -85,9 +85,9 @@ if rg -n '/opt/zeta4s-src|PYTHONPATH=.*/src|PYTHONPATH: .*/src' docker-compose.y
   exit 1
 fi
 
-legacy_airflow_image_key="ZETA4S_""AIRFLOW_IMAGE"
-legacy_airflow_dockerfile="docker/airflow/""Dockerfile"
-if rg -n "$legacy_airflow_image_key|$legacy_airflow_dockerfile" docker-compose.yml .env.example scripts tests \
+coupled_airflow_image_key="ZETA4S_""AIRFLOW_IMAGE"
+coupled_airflow_dockerfile="docker/airflow/""Dockerfile"
+if rg -n "$coupled_airflow_image_key|$coupled_airflow_dockerfile" docker-compose.yml .env.example scripts tests \
   -g '!scripts/check_static_cli_contract.sh' >/dev/null; then
   echo "static CLI contract violation: zeta4s must not build or configure an Airflow-coupled image" >&2
   exit 1
@@ -176,10 +176,10 @@ if ! rg -n 'format_display_time\(event\.get\("event_time"\)' src/zeta4s/cli/main
   exit 1
 fi
 
-# secret 체계는 AESGCM256 하나다. Fernet runtime key 경로는 호출부 없이 배포 표면만
-# 점유하다가 제거됐다. 되살아나면 배포마다 쓰지 않는 비밀을 다시 요구하게 된다.
+# secret 체계는 AESGCM256 하나다. 별도 runtime key 는 호출부가 없으므로 배포 표면에 두지
+# 않는다. 생기면 배포마다 쓰지 않는 비밀을 요구하게 된다.
 if rg -n 'ZETA4S_RUNTIME_KEY' src/zeta4s docker-compose.yml >/dev/null; then
-  echo "static CLI contract violation: Fernet runtime key was removed; do not reintroduce ZETA4S_RUNTIME_KEY" >&2
+  echo "static CLI contract violation: secret contract has no runtime key; do not add ZETA4S_RUNTIME_KEY" >&2
   exit 1
 fi
 

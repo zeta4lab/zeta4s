@@ -22,8 +22,8 @@ zeta4s 가 소유하지 않는 것 (orchestration **기반(mechanism)**):
 
 orchestration 기반은 항상 외부 scheduler engine 에 위임한다. 운영 환경의 engine 은
 Airflow 와 Prefect 두 가지다.
-zeta4s 는 자체 오케스트레이터를 만들지 않는다. 1인 유지보수 범위에서 오케스트레이션
-기반은 소유할 수 없는 비용이며, zeta4s 의 가치는 계약과 의미론의 단일성에 있다.
+zeta4s 는 자체 오케스트레이터를 만들지 않는다. zeta4s 의 가치는 계약과 의미론의 단일성에
+있다.
 
 ## 핵심 원칙
 

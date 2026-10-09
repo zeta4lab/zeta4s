@@ -16,7 +16,7 @@ import urllib.parse
 
 from zeta4s.airflow.rest_client import AirflowRestClient, AirflowRestError, require_rest_client
 
-# metastore 경로가 돌려주던 dag run field 다. REST 응답의 key 와 이름이 같고 `run_id` 만
+# 호출부에 돌려주는 dag run field 다. REST 응답의 key 와 이름이 같고 `run_id` 만
 # 다르다 — REST 는 `dag_run_id` 로 준다.
 _DAG_RUN_FIELDS = (
     "state",
@@ -48,7 +48,7 @@ def _none_on_404(call):
 
 
 def _dag_run_row(dag_id: str, row: dict[str, Any]) -> dict[str, Any]:
-    """REST dag run 을 metastore 경로가 내던 모양으로 맞춘다."""
+    """REST dag run 을 호출부가 읽는 모양으로 맞춘다."""
     run_type = row.get("run_type")
     conf = row.get("conf") if isinstance(row.get("conf"), dict) else {}
     mapped: dict[str, Any] = {
@@ -69,7 +69,7 @@ def dag_run(dag_id: str, run_id: str) -> dict[str, Any] | None:
 
 
 def _recency_key(row: dict[str, Any]) -> str:
-    """metastore 경로가 쓰던 우선순위다. 시각이 없는 run 은 run_id 로 줄 세운다.
+    """최근 run 을 고르는 우선순위다. 시각이 없는 run 은 run_id 로 줄 세운다.
 
     **정렬을 REST 에 맡길 수 없다.** `order_by` 는 `run_after`/`start_date`/`logical_date`/
     `id` 를 받지만 `queued_at` 은 400 `Ordering with 'queued_at' is disallowed` 로 막는다.
@@ -128,7 +128,7 @@ def task_instances_by_run(keys: list[tuple[str, str]]) -> dict[tuple[str, str], 
     """(dag_id, run_id) 별 task instance 다. run 마다 왕복하지 않고 한 번에 받는다.
 
     `dag_ids` 와 `dag_run_ids` 는 각각 독립으로 걸리므로 응답은 요청한 짝의 곱집합이다.
-    metastore 경로의 `IN` × `IN` query 와 같은 성질이라 짝으로 다시 거른다.
+    그래서 짝으로 다시 거른다.
     """
     if not keys:
         return {}
@@ -187,8 +187,8 @@ def task_log_lines(
 ) -> list[str] | None:
     """task 시도 하나의 로그를 줄 단위로 준다. 없으면 None 이다.
 
-    **Airflow 3 의 task log 는 JSON line 이다.** 파일도 REST 도 같은 레코드이고, 파일을 직접
-    읽던 시절의 내용과 같은 모양으로 돌려주려면 레코드를 다시 JSON line 으로 만든다.
+    **Airflow 3 의 task log 는 JSON line 이다.** 파일도 REST 도 같은 레코드이고, 로그 파일과
+    같은 모양으로 돌려주려면 레코드를 다시 JSON line 으로 만든다.
 
     `text/plain` 은 406 이다. `application/json` 또는 `application/x-ndjson` 만 받는다.
     """

@@ -1,7 +1,6 @@
 """note 요약 집계의 동작 계약.
 
-이 검사는 REST 전환 전에 현재 동작을 고정하려고 썼다. 입력 모양은 Airflow ORM 객체에서
-REST dict 로 바뀌지만 **집계 결과는 바이트 단위로 같아야 한다.** 기대값이 전환의 안전망이다.
+입력은 Airflow REST dict 다. 기대값은 **집계 결과를 바이트 단위로** 고정한다.
 """
 
 from __future__ import annotations

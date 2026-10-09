@@ -22,9 +22,9 @@ rowset 으로 만드는 producer 는 `elasticsearch.extract` 가 담당한다.
 
 ## 지원 버전
 
-1.0.0 검증 대상은 Docker stack 기본 Elasticsearch `8.15.4` 다. 다른 Elasticsearch 8.x 버전은
+검증 대상은 Docker stack 기본 Elasticsearch `8.15.4` 다. 다른 Elasticsearch 8.x 버전은
 API 호환 범위에서 동작할 수 있지만 release validation 대상은 아니다. Elasticsearch 7.x 이하는
-공식 지원 대상으로 두지 않는다.
+지원 대상으로 두지 않는다.
 
 ## 현재 계약
 
@@ -177,7 +177,7 @@ Operation 별 추가 필수 field:
 
 ## Operation
 
-1.0.0 operation:
+지원 operation:
 
 - `bulk`: `_bulk`
 - `reindex`: `_reindex`

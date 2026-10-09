@@ -146,24 +146,14 @@ def discover_installed_step_type_factories() -> list[str]:
     return [entry_point.value for entry_point in entry_points(group=STEP_TYPE_ENTRY_POINT_GROUP)]
 
 
-def register_installed_step_types(*, allowed_entry_point_names: frozenset[str] | None = None) -> int:
+def register_installed_step_types() -> int:
     """설치된 `zeta4s.step_types` 플러그인을 discover 해 활성 registry 를 원자적으로 교체한다.
 
     설치가 곧 등록이다. broken 플러그인(import/호출/타입/schema/이름 충돌 실패)은
     `StepTypeContractError` 로 표면화한다. 발견한 factory 수를 반환한다.
     """
     with _registry_lock:
-        installed = list(entry_points(group=STEP_TYPE_ENTRY_POINT_GROUP))
-        if allowed_entry_point_names is None:
-            factory_refs = [entry_point.value for entry_point in installed]
-        else:
-            factory_refs = []
-            for entry_point in installed:
-                if entry_point.name not in allowed_entry_point_names:
-                    raise StepTypeContractError(
-                        f"entry-points:{STEP_TYPE_ENTRY_POINT_GROUP}: commercial plugin is not entitled"
-                    )
-                factory_refs.append(entry_point.value)
+        factory_refs = discover_installed_step_type_factories()
         descriptors = load_step_type_descriptors(factory_refs) if factory_refs else []
         candidate = _validated_registry(
             descriptors,

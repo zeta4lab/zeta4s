@@ -81,7 +81,7 @@ lowercase 로 쓴다.
 
 후속 step 이 참조할 수 있는 output 이름은 `target.table` 값이다. 별도 `output` 블록은 쓰지 않는다.
 
-`source.query` 라는 이름은 SQL query 로 오해되므로 현재 계약에 유지하지 않는다.
+`source.query` 라는 이름은 SQL query 로 오해되므로 현재 계약에서 쓰지 않는다.
 
 Output column 은 runtime parameter 가 아니라 API response contract 이므로 `params.output_columns` 를
 쓰지 않고 `api.response.columns` 를 사용한다.

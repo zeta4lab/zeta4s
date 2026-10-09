@@ -26,8 +26,8 @@ postgres service
 `postgresql://airflow:airflow@postgres:5432/zeta4s_metastore` 다. 운영 환경은 같은 contract 의 외부
 PostgreSQL DSN 을 service config/secret 으로 주입한다.
 
-기존 ClickHouse metastore adapter 는 제거하지 않는다. `ZETA4S_METASTORE_TYPE=clickhouse` 로 선택할 수
-있으며 기존 ClickHouse 전용 connection 환경 변수를 사용한다. Metastore backend 선택과 project 의
+ClickHouse metastore adapter 는 `ZETA4S_METASTORE_TYPE=clickhouse` 로 선택할 수 있으며 ClickHouse 전용
+connection 환경 변수를 사용한다. Metastore backend 선택과 project 의
 ClickHouse runtime data backend 사용 여부는 독립적이다.
 
 Docker Compose 의 ClickHouse service 는 기본 control-plane stack 에 포함하지 않고 `asset` profile 에
@@ -36,13 +36,13 @@ Docker Compose 의 ClickHouse service 는 기본 control-plane stack 에 포함�
 
 PostgreSQL database 자체의 생성과 role 권한 부여는 container init 또는 운영 provisioning 이 소유한다.
 `z4s api bootstrap` 은 이미 존재하는 database 안에서 zeta4s table/index 를 생성하고 inspection 한다.
-기존 backend 사이의 metadata migration 과 dual-write 는 제공하지 않는다.
+Metastore backend 사이의 metadata migration 과 dual-write 는 제공하지 않는다.
 
 ## 용어 정리
 
 | 용어 | 의미 |
 |------|------|
-| Metastore | zeta4s zeta4s 가 실행을 관리하기 위해 쓰는 metadata DB. 업무 row data 를 저장하는 DB 가 아니다. |
+| Metastore | zeta4s 가 실행을 관리하기 위해 쓰는 metadata DB. 업무 row data 를 저장하는 DB 가 아니다. |
 | Control plane | deploy, registration, run 상태, report 처럼 실행을 통제하고 추적하는 영역. |
 | Runtime data backend | `stage`, `dbt.run`, `<db>.sql`, `write` step 이 실제 업무 table 을 읽고 쓰는 DB 또는 target system. |
 | Data plane | Runtime data backend 에 저장되는 업무 데이터 영역. |
