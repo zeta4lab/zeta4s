@@ -6,6 +6,10 @@ updates:
       interval: weekly
     commit-message:
       prefix: "chore"
+    # prefect 는 wheel, image, compose server 까지 여러 곳에 pin 돼 있어 lock 만 올리는
+    # 갱신은 어긋난다. 업그레이드는 명시적 결정으로 직접 올린다.
+    ignore:
+      - dependency-name: prefect
     groups:
       python:
         patterns: ["*"]

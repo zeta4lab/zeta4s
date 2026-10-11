@@ -123,6 +123,8 @@ metastore 기록 계약을 사용한다. runtime callable 을 core 경계 밖에
 - Prefect dependency 는 `zeta4s-api` distribution 의 adapter layer 에만 둔다.
   `zeta4s.core`, `zeta4s.project`, `zeta4s-cli` 에는 들어가지 않는다.
 - Prefect 버전은 `uv.lock` 으로 고정하고, 업그레이드는 명시적 결정으로만 수행한다.
+  Dependabot 은 prefect 를 올리지 않는다. 함께 올려야 하는 pin 위치는
+  `tests/test_runtime_environment_contract.py` 의 pin 일치 테스트가 정본이다.
   Prefect 신기능 추종을 위한 리팩토링은 하지 않는다.
 - Prefect 의 Flow/Task/Deployment model 을 canonical authoring/normalization model 로
   사용하지 않는다.
