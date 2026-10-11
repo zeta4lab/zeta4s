@@ -22,7 +22,7 @@ clickhouse-connect>=0.7.0
 cryptography>=50.0.2,<51
 duckdb>=1.1,<2.0
 fastapi>=0.115,<1.0
-prefect==3.8.7
+prefect==3.8.8
 psycopg[binary]>=3.2,<4.0
 pyarrow>=24.0,<26.0
 pyiceberg[s3fs]==0.12.0
